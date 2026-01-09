@@ -15,10 +15,23 @@ TYPE_MAP = {
     "journal article": "article",
     "paper": "article",
     "conference paper": "article",
+
+    # Periodicals
+    "periodical": "periodical",
+    "fulltext": "periodical",
+    "journal": "periodical",
+    "magazine": "periodical",
+    "serial": "periodical",
+
+    # AV & other
     "video": "video",
     "lecture": "video",
     "course": "course",
     "module": "course",
+    "ebook": "book",
+    "audio": "audio",
+    "image": "image",
+    "other": "other",
 }
 
 # Raw strings that really do mean “other”
@@ -33,6 +46,17 @@ MONOGRAPH_SOURCES = {
     "OAPEN Library - OAIPMH",
     "DOAB - OAIPMH",
 }
+
+# Kbart-mapped types that we might see in resource_type
+KBART_LABELS = {
+    "ebook": "Book",
+    "journal": "Journal",
+    "audio": "Audio",
+    "video": "Video",
+    "image": "Image",
+    "other": "Other",
+}
+
 
 
 def infer_from_strings(s: str | None) -> str | None:
@@ -97,7 +121,13 @@ class Command(BaseCommand):
         dry_run = options["dry_run"]
 
         qs = OERResource.objects.filter(
-            Q(normalised_type__isnull=True) | Q(normalised_type__exact="")
+            Q(normalised_type__isnull=True) |
+            Q(normalised_type__exact="") |
+            Q(normalised_type__in=[
+                "ebook", "e-book",
+                "audio", "fulltext", "periodical",
+                "other",
+            ])
         )
 
         totals = 0

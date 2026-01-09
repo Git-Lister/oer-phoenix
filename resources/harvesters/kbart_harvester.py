@@ -19,7 +19,6 @@ from resources.models import OERResource, HarvestJob
 
 logger = logging.getLogger(__name__)
 
-
 class KBARTHarvester:
     """Simple KBART parser that maps common KBART columns to OERResource fields.
 
@@ -39,6 +38,22 @@ class KBARTHarvester:
     LICENSE_COLS = ["coveragenotes", "coverage_notes", "coveragedepth", "coverage_depth"]
     DATE_COLS = ["datefirstissueonline", "date_first_issue_online"]
 
+    # NEW: KBART coverage_depth mapping to resource types
+    COVERAGE_DEPTH_MAP = {
+        "audio": "audio",           # Podcasts → Audio ✅
+        "fulltext": "periodical",   # Journals/Magazines → Periodical ✅
+        "other": "other",           # Reports/Stats → Other ✅
+        "ebook": "book",            # Books → Book (existing)
+        "video": "video",           # Videos → Video (existing)
+        # Case-insensitive + variants
+        "audiO": "audio",
+        "fullText": "periodical", 
+        "full text": "periodical",
+        "Fulltext": "periodical",
+        "Other": "other",
+        "print": "book",            # Print → treat as book for now
+    }
+
     def __init__(self):
         self.session = requests.Session()
 
@@ -52,7 +67,6 @@ class KBARTHarvester:
                 text = fh.read()
         return io.StringIO(text)
 
-    # ADD NEW METHOD HERE (after _open, before _get_first):
     def _get_first_flexible(self, row: dict, keys: list[str]) -> Optional[str]:
         """Get first matching value with aggressive fuzzy matching."""
         # Clean the row keys once
@@ -86,16 +100,21 @@ class KBARTHarvester:
             return coverage
         return ""
 
+    # NEW: Extract coverage_depth from row
+    def _kbart_coverage_depth(self, row: dict) -> str:
+        """Extract coverage_depth with flexible matching."""
+        return self._get_first_flexible(row, ["coveragedepth", "coverage_depth"]) or ""
+
+    # REPLACED: Now uses coverage_depth mapping
     def _infer_resource_type(self, row: dict) -> str:
-        v = self._get_first(row, self.TYPE_COLS)
-        if not v:
-            return "book"
-        v = v.lower()
-        if "ebook" in v or "monograph" in v or "book" in v:
-            return "book"
-        if "article" in v or "journal" in v or "serial" in v:
-            return "article"
-        return "book"
+        depth = self._kbart_coverage_depth(row)
+        if depth:
+            mapped = self.COVERAGE_DEPTH_MAP.get(depth.lower().strip())
+            if mapped:
+                logger.info(f"KBART coverage_depth '{depth}' → '{mapped}'")
+                return mapped
+        logger.info(f"KBART no coverage_depth found, defaulting to 'ebook'")
+        return "ebook"
 
     def harvest_from_path(self, source, path_or_url: str) -> HarvestJob:
         """Harvest KBART rows from a local path or URL and attach them to `source`.
@@ -149,8 +168,6 @@ class KBARTHarvester:
                     description_parts = []
                     if row.get("title_notes"):
                         description_parts.append(str(row.get("title_notes")))
-                    if row.get("coverage_depth"):
-                        description_parts.append(str(row.get("coverage_depth")))
                     description = " | ".join(p for p in description_parts if p)
 
                     # Log what we extracted for first few records

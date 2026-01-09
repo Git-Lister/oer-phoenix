@@ -465,13 +465,13 @@ class OERResourceAdmin(admin.ModelAdmin):
         'source',
         'publisher',
         'url_display',
-        'resource_type',
+        'normalised_type',  # ← CHANGED: was 'resource_type'
         'overall_quality_score',
         'has_embedding',
     ]
     list_filter = [
         'source',
-        'resource_type',
+        'normalised_type',  # ← CHANGED: was 'resource_type'
         'is_active',
         'language',
         'overall_quality_score',
@@ -518,7 +518,7 @@ class OERResourceAdmin(admin.ModelAdmin):
             'fields': ('title', 'publisher', 'author', 'source')
         }),
         ('Content', {
-            'fields': ('description', 'url', 'license', 'resource_type', 'format')
+            'fields': ('description', 'url', 'license', 'normalised_type', 'format')  
         }),
         ('Details', {
             'fields': ('subject', 'level', 'language', 'keywords', 'ai_generated_summary'),
