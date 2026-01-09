@@ -28,16 +28,16 @@ class KBARTHarvester:
     """
 
     # Column mappings based on actual KBART file structure
-    TITLE_COLS = ["publication_title", "title"]
-    URL_COLS = ["title_url", "online_identifier"]
-    AUTHOR_COLS = ["first_author", "author"]
-    PUBLISHER_COLS = ["publisher_name", "publisher"]
-    ISBN_COLS = ["print_identifier", "online_identifier"]
-    ONLINE_ID_COLS = ["title_id", "online_identifier"]
-    TYPE_COLS = ["publication_type", "embargo_info"]  # embargo_info contains "ebook"
-    SUBJECT_COLS = ["subject", "coverage_notes"]
-    LICENSE_COLS = ["coverage_notes", "coverage_depth"]  # license info is in coverage_notes
-    DATE_COLS = ["date_first_issue_online"]
+    TITLE_COLS = ["publicationtitle", "publication_title", "title"]
+    URL_COLS = ["titleurl", "title_url", "onlineidentifier", "online_identifier"]
+    AUTHOR_COLS = ["firstauthor", "first_author", "author"]
+    PUBLISHER_COLS = ["publishername", "publisher_name", "publisher"]
+    ISBN_COLS = ["printidentifier", "print_identifier", "onlineidentifier", "online_identifier"]
+    ONLINE_ID_COLS = ["titleid", "title_id", "onlineidentifier", "online_identifier"]
+    TYPE_COLS = ["publicationtype", "publication_type", "embargoinfo", "embargo_info"]
+    SUBJECT_COLS = ["subject", "coveragenotes", "coverage_notes"]
+    LICENSE_COLS = ["coveragenotes", "coverage_notes", "coveragedepth", "coverage_depth"]
+    DATE_COLS = ["datefirstissueonline", "date_first_issue_online"]
 
     def __init__(self):
         self.session = requests.Session()
@@ -51,6 +51,22 @@ class KBARTHarvester:
             with open(path_or_url, "r", encoding="utf-8") as fh:
                 text = fh.read()
         return io.StringIO(text)
+
+    # ADD NEW METHOD HERE (after _open, before _get_first):
+    def _get_first_flexible(self, row: dict, keys: list[str]) -> Optional[str]:
+        """Get first matching value with aggressive fuzzy matching."""
+        # Clean the row keys once
+        cleaned_row = {k.strip().lower(): v for k, v in row.items() if k}
+        
+        # Try exact match on cleaned keys
+        for k in keys:
+            clean_k = k.strip().lower()
+            if clean_k in cleaned_row:
+                v = cleaned_row[clean_k]
+                if v and str(v).strip():
+                    return str(v).strip()
+        
+        return None
 
     def _get_first(self, row: dict, keys: list[str]) -> Optional[str]:
         for k in keys:
@@ -66,7 +82,6 @@ class KBARTHarvester:
     def _extract_license(self, row: dict) -> str:
         """Extract license from coverage_notes field."""
         coverage = row.get("coverage_notes", "") or ""
-        # License typically looks like "Creative Commons Attribution (CC BY)"
         if "Creative Commons" in coverage or "CC BY" in coverage:
             return coverage
         return ""
@@ -74,13 +89,13 @@ class KBARTHarvester:
     def _infer_resource_type(self, row: dict) -> str:
         v = self._get_first(row, self.TYPE_COLS)
         if not v:
-            return "book"  # Default for KBART
+            return "book"
         v = v.lower()
         if "ebook" in v or "monograph" in v or "book" in v:
             return "book"
         if "article" in v or "journal" in v or "serial" in v:
             return "article"
-        return "book"  # KBART is typically books
+        return "book"
 
     def harvest_from_path(self, source, path_or_url: str) -> HarvestJob:
         """Harvest KBART rows from a local path or URL and attach them to `source`.
@@ -103,42 +118,44 @@ class KBARTHarvester:
                 delimiter = "\t"
                 logger.info("Using default tab delimiter")
             
-            # KBART is tab-separated with header row
             reader = csv.DictReader(fh, delimiter=delimiter)
             
             first_row = True
             for row in reader:
                 job.pages_processed += 1
                 
-                # Log first row for debugging
+                # REPLACE the existing "Log first row" block with this expanded version:
                 if first_row:
                     logger.info(f"KBART column headers: {list(row.keys())}")
+                    logger.info(f"Full first row keys (repr): {[repr(k) for k in row.keys()]}")
                     logger.info(f"First row sample - title field: {row.get('publication_title', 'NOT FOUND')}")
                     logger.info(f"First row sample - url field: {row.get('title_url', 'NOT FOUND')}")
+                    logger.info(f"Title extraction attempt: {self._get_first(row, self.TITLE_COLS)}")
                     first_row = False
                 
                 try:
-                    title = self._get_first(row, self.TITLE_COLS) or ""
-                    url = self._get_first(row, self.URL_COLS) or ""
-                    author = self._get_first(row, self.AUTHOR_COLS) or ""
-                    publisher = self._get_first(row, self.PUBLISHER_COLS) or ""
-                    isbn = self._get_first(row, self.ISBN_COLS) or ""
+                    # REPLACE all self._get_first calls with self._get_first_flexible:
+                    title = self._get_first_flexible(row, self.TITLE_COLS) or ""
+                    url = self._get_first_flexible(row, self.URL_COLS) or ""
+                    author = self._get_first_flexible(row, self.AUTHOR_COLS) or ""
+                    publisher = self._get_first_flexible(row, self.PUBLISHER_COLS) or ""
+                    isbn = self._get_first_flexible(row, self.ISBN_COLS) or ""
                     license_info = self._extract_license(row)
-                    raw_type = self._get_first(row, self.TYPE_COLS) or "ebook"
+                    raw_type = self._get_first_flexible(row, self.TYPE_COLS) or "ebook"
                     normalised_type = self._infer_resource_type(row)
-                    pub_date = self._get_first(row, self.DATE_COLS) or ""
+                    pub_date = self._get_first_flexible(row, self.DATE_COLS) or ""
 
                     # Build description from available notes
                     description_parts = []
                     if row.get("title_notes"):
-                        description_parts.append(row.get("title_notes"))
+                        description_parts.append(str(row.get("title_notes")))
                     if row.get("coverage_depth"):
-                        description_parts.append(row.get("coverage_depth"))
+                        description_parts.append(str(row.get("coverage_depth")))
                     description = " | ".join(p for p in description_parts if p)
 
                     # Log what we extracted for first few records
                     if job.pages_processed <= 3:
-                        logger.info(f"Row {job.pages_processed}: title={title[:50] if title else 'EMPTY'}, url={url[:50] if url else 'EMPTY'}")
+                        logger.info(f"Row {job.pages_processed}: title={title[:50] if title else 'EMPTY'}, url={url[:50] if url else 'EMPTY'}, publisher={publisher}")
 
                     # find existing resource by URL first
                     resource = None
@@ -154,7 +171,7 @@ class KBARTHarvester:
                             resource = resource_qs.first()
 
                     defaults = {
-                        "title": title or url or "(untitled)",
+                        "title": title or "(untitled)",  # CHANGED: removed fallback to url
                         "description": description,
                         "url": url or "",
                         "author": author,
@@ -176,7 +193,6 @@ class KBARTHarvester:
                     if pub_date and len(pub_date) >= 4:
                         defaults["publication_year"] = pub_date[:4]
 
-
                     if resource:
                         for k, v in defaults.items():
                             if v:
@@ -194,7 +210,6 @@ class KBARTHarvester:
                     job.resources_failed += 1
                     failed += 1
 
-            # done
             job.resources_created = created
             job.resources_updated = updated
             job.resources_skipped = skipped
@@ -202,7 +217,7 @@ class KBARTHarvester:
             job.status = "completed" if failed == 0 else ("partial" if created or updated else "failed")
             job.completed_at = timezone.now()
             job.save()
-            # update source counts
+
             source.total_harvested = source.total_harvested + job.resources_created
             source.last_harvest_at = timezone.now()
             source.save()
@@ -218,7 +233,7 @@ class KBARTHarvester:
     def harvest_from_fileobj(self, source, fileobj) -> HarvestJob:
         """Harvest from an uploaded file-like object (Django UploadedFile).
 
-        Reads content and processes as KBART TSV.
+        Reads content and processes as KBART CSV/TSV.
         """
         text = None
         # Django InMemoryUploadedFile or TemporaryUploadedFile
@@ -228,7 +243,7 @@ class KBARTHarvester:
                 # If fileobj provides bytes, decode
                 raw = fileobj.read()
                 if isinstance(raw, bytes):
-                    text = raw.decode('utf-8')
+                    text = raw.decode('utf-8-sig')  # CHANGED: utf-8-sig strips BOM automatically
                 else:
                     text = str(raw)
             else:
@@ -263,35 +278,38 @@ class KBARTHarvester:
             for row in reader:
                 job.pages_processed += 1
                 
-                # Log first row for debugging
+                # Enhanced logging for first row
                 if first_row:
                     logger.info(f"KBART uploaded file - column headers: {list(row.keys())}")
+                    logger.info(f"Full first row keys (repr): {[repr(k) for k in row.keys()]}")
                     logger.info(f"First row sample - title field: {row.get('publication_title', 'NOT FOUND')}")
                     logger.info(f"First row sample - url field: {row.get('title_url', 'NOT FOUND')}")
+                    logger.info(f"Title extraction attempt: {self._get_first_flexible(row, self.TITLE_COLS)}")
                     first_row = False
                 
                 try:
-                    title = self._get_first(row, self.TITLE_COLS) or ""
-                    url = self._get_first(row, self.URL_COLS) or ""
-                    author = self._get_first(row, self.AUTHOR_COLS) or ""
-                    publisher = self._get_first(row, self.PUBLISHER_COLS) or ""
-                    isbn = self._get_first(row, self.ISBN_COLS) or ""
+                    # Use flexible extraction
+                    title = self._get_first_flexible(row, self.TITLE_COLS) or ""
+                    url = self._get_first_flexible(row, self.URL_COLS) or ""
+                    author = self._get_first_flexible(row, self.AUTHOR_COLS) or ""
+                    publisher = self._get_first_flexible(row, self.PUBLISHER_COLS) or ""
+                    isbn = self._get_first_flexible(row, self.ISBN_COLS) or ""
                     license_info = self._extract_license(row)
-                    raw_type = self._get_first(row, self.TYPE_COLS) or "ebook"
+                    raw_type = self._get_first_flexible(row, self.TYPE_COLS) or "ebook"
                     normalised_type = self._infer_resource_type(row)
-                    pub_date = self._get_first(row, self.DATE_COLS) or ""
+                    pub_date = self._get_first_flexible(row, self.DATE_COLS) or ""
 
                     # Build description from available notes
                     description_parts = []
                     if row.get("title_notes"):
-                        description_parts.append(row.get("title_notes"))
+                        description_parts.append(str(row.get("title_notes")))
                     if row.get("coverage_depth"):
-                        description_parts.append(row.get("coverage_depth"))
+                        description_parts.append(str(row.get("coverage_depth")))
                     description = " | ".join(p for p in description_parts if p)
 
                     # Log what we extracted for first few records
                     if job.pages_processed <= 3:
-                        logger.info(f"Row {job.pages_processed}: title={title[:50] if title else 'EMPTY'}, url={url[:50] if url else 'EMPTY'}")
+                        logger.info(f"Row {job.pages_processed}: title={title[:50] if title else 'EMPTY'}, url={url[:50] if url else 'EMPTY'}, publisher={publisher}")
 
                     resource = None
                     if url:
@@ -306,7 +324,7 @@ class KBARTHarvester:
                             resource = resource_qs.first()
 
                     defaults = {
-                        "title": title or url or "(untitled)",
+                        "title": title or "(untitled)",  # Removed url fallback
                         "description": description,
                         "url": url or "",
                         "author": author,
@@ -315,7 +333,13 @@ class KBARTHarvester:
                         "license": license_info,
                         "resource_type": raw_type,
                         "normalised_type": normalised_type,
-                        "publication_year": "",  # Initialize as empty string
+                        "publication_year": "",
+                        "embargo_info": row.get("embargo_info", "") or "",
+                        "coverage_notes": row.get("coverage_notes", "") or "",
+                        "date_first_issue_online": row.get("date_first_issue_online", "") or "",
+                        "date_last_issue_online": row.get("date_last_issue_online", "") or "",
+                        "num_first_vol_online": row.get("num_first_vol_online", "") or "",
+                        "num_first_issue_online": row.get("num_first_issue_online", "") or "",
                     }
 
                     # Add publication year if available

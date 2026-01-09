@@ -1,0 +1,87 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+    /* Style for sidebar tooltips */
+    .model-link-with-tooltip {
+        position: relative;
+        display: inline-block;
+    }
+    
+    .model-link-with-tooltip .tooltip-text {
+        visibility: hidden;
+        width: 280px;
+        background-color: #333;
+        color: #fff;
+        text-align: left;
+        border-radius: 6px;
+        padding: 8px 12px;
+        position: absolute;
+        z-index: 1000;
+        left: 105%;
+        top: 50%;
+        transform: translateY(-50%);
+        opacity: 0;
+        transition: opacity 0.3s;
+        font-size: 12px;
+        line-height: 1.4;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+    
+    .model-link-with-tooltip .tooltip-text::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        right: 100%;
+        margin-top: -5px;
+        border-width: 5px;
+        border-style: solid;
+        border-color: transparent #333 transparent transparent;
+    }
+    
+    .model-link-with-tooltip:hover .tooltip-text {
+        visibility: visible;
+        opacity: 1;
+    }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Add tooltips to Resources section links
+    const tooltips = {
+        'Harvest Jobs': 'View history of all data imports from OER sources. Shows success/failure status and import statistics.',
+        'OER Resources': 'Browse and search all educational resources collected from various sources. Edit metadata or remove items.',
+        'OER Sources': 'Configure where to import OER content from (OAPEN, DOAB, etc.). Set up harvesting schedules and test connections.',
+        'Talis Push Jobs': 'Track exports of OER alternatives to your Talis reading list system. Monitor push status and view logs.'
+    };
+    
+    document.querySelectorAll('#content-main .module caption a').forEach(function(link) {
+        const appName = link.textContent.trim();
+        if (appName === 'Resources') {
+            // Find the table and add tooltips to model links
+            const table = link.closest('.module').querySelector('table');
+            if (table) {
+                table.querySelectorAll('th a').forEach(function(modelLink) {
+                    const modelName = modelLink.textContent.trim();
+                    if (tooltips[modelName]) {
+                        // Wrap link in tooltip container
+                        const wrapper = document.createElement('span');
+                        wrapper.className = 'model-link-with-tooltip';
+                        modelLink.parentNode.insertBefore(wrapper, modelLink);
+                        wrapper.appendChild(modelLink);
+                        
+                        // Add tooltip span
+                        const tooltipSpan = document.createElement('span');
+                        tooltipSpan.className = 'tooltip-text';
+                        tooltipSpan.textContent = tooltips[modelName];
+                        wrapper.appendChild(tooltipSpan);
+                    }
+                });
+            }
+        }
+    });
+});
+</script>
+{% endblock %}
