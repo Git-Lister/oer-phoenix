@@ -11,11 +11,11 @@ RUN apt-get update && apt-get install -y \
     netcat-openbsd \
     && rm -rf /var/lib/apt/lists/*
 
+# Copy requirements file first (for Docker layer caching)
+COPY requirements.txt .
+
 # Install Python dependencies
-COPY requirements.txt requirements-extras.txt ./
-# Install core requirements first, then optional extraction extras
-RUN pip install --no-cache-dir -r requirements.txt \
-    && if [ -f requirements-extras.txt ]; then pip install --no-cache-dir -r requirements-extras.txt; fi
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy project files
 COPY . .

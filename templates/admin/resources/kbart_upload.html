@@ -3,47 +3,51 @@
 
 {% block content %}
 <div id="content-main">
-    <h1>Upload KBART File</h1>
-    <div class="module">
-        <form method="post" enctype="multipart/form-data">
-            {% csrf_token %}
-            <fieldset class="aligned wide">
-                <div class="form-row">
-                    {{ form.kbart_file.label_tag }}
-                    {{ form.kbart_file }}
-                    {% if form.kbart_file.errors %}
-                        <ul class="errorlist">
-                            {% for error in form.kbart_file.errors %}
-                                <li>{{ error }}</li>
-                            {% endfor %}
-                        </ul>
-                    {% endif %}
-                </div>
-                <div class="form-row">
-                    {{ form.kbart_url.label_tag }}
-                    {{ form.kbart_url }}
-                    {% if form.kbart_url.errors %}
-                        <ul class="errorlist">
-                            {% for error in form.kbart_url.errors %}
-                                <li>{{ error }}</li>
-                            {% endfor %}
-                        </ul>
-                    {% endif %}
-                </div>
-                <div class="form-row">
-                    {{ form.source.label_tag }}
-                    {{ form.source }}
-                </div>
-                <div class="form-row">
-                    {{ form.create_source_name.label_tag }}
-                    {{ form.create_source_name }}
-                </div>
-            </fieldset>
-            <div class="submit-row">
-                <input type="submit" value="Import KBART" class="default" name="_save">
-                <a href="{% url 'admin:resources_oersource_changelist' %}" class="button">Cancel</a>
-            </div>
-        </form>
-    </div>
+  <h1>Upload KBART file</h1>
+  <div class="module">
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <fieldset class="aligned wide">
+        <div class="form-row">
+          {{ form.kbart_file.label_tag }}
+          {{ form.kbart_file }}
+          <p class="help">Upload a KBART TSV/CSV file from OCLC (optional if URL is used).</p>
+          {{ form.kbart_file.errors }}
+        </div>
+
+        <div class="form-row">
+          {{ form.kbart_url.label_tag }}
+          {{ form.kbart_url }}
+          <p class="help">Or provide a URL to a KBART file.</p>
+          {{ form.kbart_url.errors }}
+        </div>
+
+        <div class="form-row">
+          {{ form.source.label_tag }}
+          {{ form.source }}
+          <p class="help">Attach records to an existing source (optional if creating a new source).</p>
+          {{ form.source.errors }}
+        </div>
+
+        <div class="form-row">
+          {{ form.create_source_name.label_tag }}
+          {{ form.create_source_name }}
+          <p class="help">Or create a new source with this name.</p>
+          {{ form.create_source_name.errors }}
+        </div>
+
+        {% if form.non_field_errors %}
+          <div class="errorlist nonfield">
+            {{ form.non_field_errors }}
+          </div>
+        {% endif %}
+      </fieldset>
+
+      <div class="submit-row">
+        <input type="submit" value="Import KBART" class="default" name="_save">
+        <a href="{% url 'admin:resources_oersource_changelist' %}" class="button">Cancel</a>
+      </div>
+    </form>
+  </div>
 </div>
 {% endblock %}

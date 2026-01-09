@@ -27,14 +27,17 @@ class KBARTHarvester:
     then by `title`+`source` to avoid creating duplicates.
     """
 
-    # common KBART column names we expect (lowercased)
-    TITLE_COLS = ["publication_title", "title", "article_title"]
-    URL_COLS = ["title_url", "title_url", "online_identifier", "url"]
-    AUTHOR_COLS = ["first_author", "first_editor", "first_author"]
+    # Column mappings based on actual KBART file structure
+    TITLE_COLS = ["publication_title", "title"]
+    URL_COLS = ["title_url", "online_identifier"]
+    AUTHOR_COLS = ["first_author", "author"]
     PUBLISHER_COLS = ["publisher_name", "publisher"]
-    ISBN_COLS = ["print_identifier", "print_isbn", "isbn"]
-    ONLINE_ID_COLS = ["online_identifier", "doi"]
-    TYPE_COLS = ["publication_type", "publication_type" ]
+    ISBN_COLS = ["print_identifier", "online_identifier"]
+    ONLINE_ID_COLS = ["title_id", "online_identifier"]
+    TYPE_COLS = ["publication_type", "embargo_info"]  # embargo_info contains "ebook"
+    SUBJECT_COLS = ["subject", "coverage_notes"]
+    LICENSE_COLS = ["coverage_notes", "coverage_depth"]  # license info is in coverage_notes
+    DATE_COLS = ["date_first_issue_online"]
 
     def __init__(self):
         self.session = requests.Session()
@@ -52,24 +55,32 @@ class KBARTHarvester:
     def _get_first(self, row: dict, keys: list[str]) -> Optional[str]:
         for k in keys:
             v = row.get(k)
-            if v:
-                return v.strip()
+            if v and str(v).strip():
+                return str(v).strip()
         # try case-insensitive fallback
         for k, v in row.items():
-            if k.lower() in [x.lower() for x in keys] and v:
-                return v.strip()
+            if k.lower() in [x.lower() for x in keys] and v and str(v).strip():
+                return str(v).strip()
         return None
+
+    def _extract_license(self, row: dict) -> str:
+        """Extract license from coverage_notes field."""
+        coverage = row.get("coverage_notes", "") or ""
+        # License typically looks like "Creative Commons Attribution (CC BY)"
+        if "Creative Commons" in coverage or "CC BY" in coverage:
+            return coverage
+        return ""
 
     def _infer_resource_type(self, row: dict) -> str:
         v = self._get_first(row, self.TYPE_COLS)
         if not v:
-            return "other"
+            return "book"  # Default for KBART
         v = v.lower()
-        if "monograph" in v or "book" in v:
+        if "ebook" in v or "monograph" in v or "book" in v:
             return "book"
-        if "article" in v or "journal" in v:
+        if "article" in v or "journal" in v or "serial" in v:
             return "article"
-        return "other"
+        return "book"  # KBART is typically books
 
     def harvest_from_path(self, source, path_or_url: str) -> HarvestJob:
         """Harvest KBART rows from a local path or URL and attach them to `source`.
@@ -80,17 +91,54 @@ class KBARTHarvester:
         created = updated = skipped = failed = 0
         try:
             fh = self._open(path_or_url)
+            
+            # Try to detect delimiter
+            sample = fh.read(4096)
+            fh.seek(0)
+            try:
+                sniffer = csv.Sniffer()
+                delimiter = sniffer.sniff(sample).delimiter
+                logger.info(f"Detected delimiter: {repr(delimiter)}")
+            except Exception:
+                delimiter = "\t"
+                logger.info("Using default tab delimiter")
+            
             # KBART is tab-separated with header row
-            reader = csv.DictReader(fh, delimiter="\t")
+            reader = csv.DictReader(fh, delimiter=delimiter)
+            
+            first_row = True
             for row in reader:
                 job.pages_processed += 1
+                
+                # Log first row for debugging
+                if first_row:
+                    logger.info(f"KBART column headers: {list(row.keys())}")
+                    logger.info(f"First row sample - title field: {row.get('publication_title', 'NOT FOUND')}")
+                    logger.info(f"First row sample - url field: {row.get('title_url', 'NOT FOUND')}")
+                    first_row = False
+                
                 try:
                     title = self._get_first(row, self.TITLE_COLS) or ""
-                    url = self._get_first(row, self.URL_COLS) or self._get_first(row, self.ONLINE_ID_COLS) or ""
+                    url = self._get_first(row, self.URL_COLS) or ""
                     author = self._get_first(row, self.AUTHOR_COLS) or ""
                     publisher = self._get_first(row, self.PUBLISHER_COLS) or ""
                     isbn = self._get_first(row, self.ISBN_COLS) or ""
+                    license_info = self._extract_license(row)
+                    raw_type = self._get_first(row, self.TYPE_COLS) or "ebook"
                     normalised_type = self._infer_resource_type(row)
+                    pub_date = self._get_first(row, self.DATE_COLS) or ""
+
+                    # Build description from available notes
+                    description_parts = []
+                    if row.get("title_notes"):
+                        description_parts.append(row.get("title_notes"))
+                    if row.get("coverage_depth"):
+                        description_parts.append(row.get("coverage_depth"))
+                    description = " | ".join(p for p in description_parts if p)
+
+                    # Log what we extracted for first few records
+                    if job.pages_processed <= 3:
+                        logger.info(f"Row {job.pages_processed}: title={title[:50] if title else 'EMPTY'}, url={url[:50] if url else 'EMPTY'}")
 
                     # find existing resource by URL first
                     resource = None
@@ -107,13 +155,27 @@ class KBARTHarvester:
 
                     defaults = {
                         "title": title or url or "(untitled)",
-                        "description": row.get("coverage", "") or row.get("notes", "") or "",
+                        "description": description,
                         "url": url or "",
                         "author": author,
                         "publisher": publisher,
                         "isbn": isbn,
+                        "license": license_info,
+                        "resource_type": raw_type,
                         "normalised_type": normalised_type,
+                        "publication_year": "",
+                        "embargo_info": row.get("embargo_info", "") or "",
+                        "coverage_notes": row.get("coverage_notes", "") or "",
+                        "date_first_issue_online": row.get("date_first_issue_online", "") or "",
+                        "date_last_issue_online": row.get("date_last_issue_online", "") or "",
+                        "num_first_vol_online": row.get("num_first_vol_online", "") or "",
+                        "num_first_issue_online": row.get("num_first_issue_online", "") or "",
                     }
+
+                    # Add publication year if available
+                    if pub_date and len(pub_date) >= 4:
+                        defaults["publication_year"] = pub_date[:4]
+
 
                     if resource:
                         for k, v in defaults.items():
@@ -131,6 +193,7 @@ class KBARTHarvester:
                     logger.exception("Failed to process KBART row: %s", e)
                     job.resources_failed += 1
                     failed += 1
+
             # done
             job.resources_created = created
             job.resources_updated = updated
@@ -178,20 +241,57 @@ class KBARTHarvester:
                 pass
 
         fh = io.StringIO(text or "")
+        
         # Reuse harvest_from_path logic by reading from fh directly
         job = HarvestJob.objects.create(source=source, status="running", started_at=timezone.now())
         created = updated = skipped = failed = 0
         try:
-            reader = csv.DictReader(fh, delimiter="\t")
+            # Try to detect delimiter
+            sample = fh.read(4096)
+            fh.seek(0)
+            try:
+                sniffer = csv.Sniffer()
+                delimiter = sniffer.sniff(sample).delimiter
+                logger.info(f"Detected delimiter in uploaded file: {repr(delimiter)}")
+            except Exception:
+                delimiter = "\t"
+                logger.info("Using default tab delimiter for uploaded file")
+            
+            reader = csv.DictReader(fh, delimiter=delimiter)
+            
+            first_row = True
             for row in reader:
                 job.pages_processed += 1
+                
+                # Log first row for debugging
+                if first_row:
+                    logger.info(f"KBART uploaded file - column headers: {list(row.keys())}")
+                    logger.info(f"First row sample - title field: {row.get('publication_title', 'NOT FOUND')}")
+                    logger.info(f"First row sample - url field: {row.get('title_url', 'NOT FOUND')}")
+                    first_row = False
+                
                 try:
                     title = self._get_first(row, self.TITLE_COLS) or ""
-                    url = self._get_first(row, self.URL_COLS) or self._get_first(row, self.ONLINE_ID_COLS) or ""
+                    url = self._get_first(row, self.URL_COLS) or ""
                     author = self._get_first(row, self.AUTHOR_COLS) or ""
                     publisher = self._get_first(row, self.PUBLISHER_COLS) or ""
                     isbn = self._get_first(row, self.ISBN_COLS) or ""
+                    license_info = self._extract_license(row)
+                    raw_type = self._get_first(row, self.TYPE_COLS) or "ebook"
                     normalised_type = self._infer_resource_type(row)
+                    pub_date = self._get_first(row, self.DATE_COLS) or ""
+
+                    # Build description from available notes
+                    description_parts = []
+                    if row.get("title_notes"):
+                        description_parts.append(row.get("title_notes"))
+                    if row.get("coverage_depth"):
+                        description_parts.append(row.get("coverage_depth"))
+                    description = " | ".join(p for p in description_parts if p)
+
+                    # Log what we extracted for first few records
+                    if job.pages_processed <= 3:
+                        logger.info(f"Row {job.pages_processed}: title={title[:50] if title else 'EMPTY'}, url={url[:50] if url else 'EMPTY'}")
 
                     resource = None
                     if url:
@@ -207,13 +307,20 @@ class KBARTHarvester:
 
                     defaults = {
                         "title": title or url or "(untitled)",
-                        "description": row.get("coverage", "") or row.get("notes", "") or "",
+                        "description": description,
                         "url": url or "",
                         "author": author,
                         "publisher": publisher,
                         "isbn": isbn,
+                        "license": license_info,
+                        "resource_type": raw_type,
                         "normalised_type": normalised_type,
+                        "publication_year": "",  # Initialize as empty string
                     }
+
+                    # Add publication year if available
+                    if pub_date and len(pub_date) >= 4:
+                        defaults["publication_year"] = pub_date[:4]
 
                     if resource:
                         for k, v in defaults.items():
@@ -251,3 +358,4 @@ class KBARTHarvester:
             job.completed_at = timezone.now()
             job.save()
             raise
+

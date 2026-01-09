@@ -339,7 +339,11 @@ class OERSourceAdmin(admin.ModelAdmin):
         
         return HttpResponseRedirect(reverse('admin:resources_oersource_changelist'))
 
-
+    def changelist_view(self, request, extra_context=None):
+        """Add KBART upload link to changelist context"""
+        extra_context = extra_context or {}
+        extra_context['kbart_upload_url'] = reverse('resources:kbart_upload')
+        return super().changelist_view(request, extra_context=extra_context)
 # ---------------------------------------------------------------------------- #
 #                               Harvest Job Admin                              #
 # ---------------------------------------------------------------------------- #

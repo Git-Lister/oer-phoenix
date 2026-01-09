@@ -248,6 +248,46 @@ class OERResource(models.Model):
         db_index=True,
         help_text="DOI string as provided (not URL)."
     )
+    publication_year = models.CharField(
+    max_length=4,
+    blank=True,
+    db_index=True,
+    help_text="Year of publication (YYYY format)"
+    )
+    # NEW: Date fields for resources with online issue dates
+    date_first_issue_online = models.CharField(
+        max_length=10,
+        blank=True,
+        help_text="First available online date (YYYY-MM-DD)"
+    )
+    date_last_issue_online = models.CharField(
+        max_length=10,
+        blank=True,
+        help_text="Last available online date (YYYY-MM-DD)"
+    )
+# NEW: Volume and issue numbers for serial publications
+    num_first_vol_online = models.CharField(
+    max_length=50,
+    blank=True,
+    help_text="First volume number available"
+    )
+    num_first_issue_online = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="First issue number available"
+    )
+    # NEW: Coverage notes from KBART or source metadata
+    coverage_notes = models.TextField(
+    blank=True,
+    help_text="Coverage statement or notes from KBART"
+    )
+    # NEW: Embargo information field
+    embargo_info = models.CharField(
+    max_length=200,
+    blank=True,
+    help_text="Embargo or access restriction info"
+    )
+
 
     # NEW: Translation fields for non-English resources
     title_en = models.CharField(

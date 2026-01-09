@@ -52,3 +52,7 @@ tika>=1.24
 pytesseract>=0.3.10
 # Testing tools
 pytest>=7.0
+
+# Merged from Extra-requirements.txt 
+setup.py
+pyproject.toml
