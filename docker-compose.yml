@@ -67,7 +67,7 @@ services:
 
   celery: 
     build: .
-    command: celery -A oer_rebirth worker -l info
+    command: celery -A oer_rebirth worker -l info --concurrency=2
     depends_on:
       - db
       - redis
