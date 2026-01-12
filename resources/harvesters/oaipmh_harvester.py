@@ -6,6 +6,7 @@ from resources.harvesters.utils import request_with_retry
 from resources.harvesters.base_harvester import BaseHarvester
 from django.core.exceptions import ValidationError
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -67,8 +68,6 @@ def _normalise_resource_type(raw_type: str) -> str:
         return "book"
     if "chapter" in t or "section" in t or "part" in t:
         return "chapter"
-    if "chapter" in t or "section" in t or "part" in t:
-        return "chapter"
     if "book" in t or "monograph" in t or "textbook" in t:
         return "book"
     if "article" in t or "journal" in t or "paper" in t:
@@ -81,6 +80,9 @@ def _normalise_resource_type(raw_type: str) -> str:
 
 
 class OAIHarvester(BaseHarvester):
+    # Dublin Core namespace
+    DC_NS = "http://purl.org/dc/elements/1.1/"
+    
     def __init__(self, source):
         super().__init__(source)
         self.config = self._get_config()
@@ -111,90 +113,78 @@ class OAIHarvester(BaseHarvester):
             return False
 
     def _parse_record(self, record_xml):
-        # Use dc namespace where available, fall back to text searches
-        title = None
-        identifiers = []
-        description = None
-        resource_type = None
-
-        for elem in record_xml.findall(
-            ".//{http://purl.org/dc/elements/1.1/}title"
-        ):
-            if elem.text:
-                title = elem.text
-                break
-        if not title:
-            # try any title-like tag
-            t = record_xml.find(".//title")
-            if t is not None and t.text:
-                title = t.text
-
-        for elem in record_xml.findall(
-            ".//{http://purl.org/dc/elements/1.1/}identifier"
-        ):
-            if elem.text:
-                identifiers.append(elem.text)
-        if not identifiers:
-            # try any identifier-like tag
-            for elem in record_xml.findall(".//identifier"):
-                if elem.text:
-                    identifiers.append(elem.text)
-
-        for elem in record_xml.findall(
-            ".//{http://purl.org/dc/elements/1.1/}description"
-        ):
-            if elem.text:
-                description = elem.text
-                break
-        if not description:
-            d = record_xml.find(".//description")
-            if d is not None and d.text:
-                description = d.text
-
-        # Extract resource type from dc:type
-        for elem in record_xml.findall(
-            ".//{http://purl.org/dc/elements/1.1/}type"
-        ):
-            if elem.text:
-                resource_type = elem.text
-                break
-        if not resource_type:
-            # try any type-like tag
-            t = record_xml.find(".//type")
-            if t is not None and t.text:
-                resource_type = t.text
-
-        # Extract language(s) from dc:language
-        languages = []
-        for elem in record_xml.findall(
-            ".//{http://purl.org/dc/elements/1.1/}language"
-        ):
-            if elem.text:
-                languages.append(elem.text)
-        if not languages:
-            # try any language-like tag
-            for elem in record_xml.findall(".//language"):
-                if elem.text:
-                    languages.append(elem.text)
-
-        # Pick a primary language if available
-        lang = _normalise_language(languages[0]) if languages else "en"
-
-        # Previously: url = identifiers (list) -> caused ONIX+URL list in url field
+        """Parse OAI-PMH record with complete Dublin Core field extraction."""
+        
+        # Helper to extract DC field (namespace-aware + fallback)
+        def get_dc_field(field_name):
+            """Extract Dublin Core field, return list of non-empty values."""
+            values = []
+            # Try with DC namespace
+            for elem in record_xml.findall(f".//{{{self.DC_NS}}}{field_name}"):
+                if elem.text and elem.text.strip():
+                    values.append(elem.text.strip())
+            # Fallback to unnamespaced
+            if not values:
+                for elem in record_xml.findall(f".//{field_name}"):
+                    if elem.text and elem.text.strip():
+                        values.append(elem.text.strip())
+            return values
+        
+        # Title
+        titles = get_dc_field('title')
+        title = titles[0] if titles else None
+        
+        # Identifier (URL)
+        identifiers = get_dc_field('identifier')
         primary_url = _pick_primary_url(identifiers)
-
-        # Ensure we always pass a string into _normalise_resource_type
-        raw_type = resource_type or ""
-
+        
+        # Description
+        descriptions = get_dc_field('description')
+        description = descriptions[0] if descriptions else None
+        
+        # Type
+        types = get_dc_field('type')
+        resource_type = types[0] if types else ""
+        normalised_type = _normalise_resource_type(resource_type)
+        
+        # Language
+        languages = get_dc_field('language')
+        lang = _normalise_language(languages[0]) if languages else "en"
+        
+        # Subject extraction (with license filtering)
+        subjects = get_dc_field('subject')
+        # Filter out license-related subjects (often misplaced dc:rights)
+        LICENSE_KEYWORDS = ['creative commons', 'cc by', 'cc0', 'public domain', 'open access']
+        clean_subjects = [
+            s for s in subjects 
+            if not any(kw in s.lower() for kw in LICENSE_KEYWORDS)
+        ]
+        subject = ', '.join(clean_subjects[:3]) if clean_subjects else ''  # Top 3 subjects
+        
+        # License extraction (dc:rights)
+        rights = get_dc_field('rights')
+        license_info = rights[0] if rights else ''  # Take first rights statement
+        
+        # Publisher extraction
+        publishers = get_dc_field('publisher')
+        publisher = publishers[0] if publishers else ''
+        
+        # Author extraction (dc:creator)
+        creators = get_dc_field('creator')
+        author = ', '.join(creators[:2]) if creators else ''  # Top 2 authors
+        
         return {
             "title": title,
             "url": primary_url,
             "description": description,
+            "subject": subject,
+            "license": license_info,
+            "publisher": publisher,
+            "author": author,
             "resource_type": resource_type,
-            "normalised_type": _normalise_resource_type(raw_type),
+            "normalised_type": normalised_type,
             "language": lang,
         }
-
 
     def fetch_and_process_records(self):
         config = self._get_config()
@@ -282,7 +272,7 @@ class OAIHarvester(BaseHarvester):
             rt = root.find(
                 ".//{http://www.openarchives.org/OAI/2.0/}resumptionToken"
             )
-            if rt is None or (rt.text is None or rt.text.strip() == ""):
+            if (rt is None or (rt.text is None or rt.text.strip() == "")):
                 break
             resumption_token = rt.text
 

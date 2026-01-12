@@ -9,6 +9,8 @@ from typing import Dict, Tuple
 from django.utils import timezone
 from datetime import timedelta
 import logging
+from resources.quality import compute_readiness_score, compute_trust_signals
+
 
 logger = logging.getLogger(__name__)
 
@@ -24,25 +26,46 @@ class QualityAssessmentService:
     
     def assess_resource(self, resource) -> Dict[str, float]:
         """
-        Comprehensive quality assessment of an OER resource
+        Comprehensive quality assessment - Phase 1 evidence-based approach.
         
-        Returns dict with scores for each quality dimension
+        Populates:
+        - metadata_quality_score (factual completeness)
+        - trust_signals (observable indicators)
+        - Keeps detailed dimension scores for admin inspection
+        
+        Returns dict with all scores for logging/display.
         """
-        scores = {
-            'metadata_completeness': self.calculate_metadata_score(resource),
-            'accessibility': self.check_accessibility_compliance(resource),
-            'license_clarity': self.verify_license(resource.license if resource.license else ""),
-            'content_freshness': self.assess_recency(getattr(resource, 'updated_at', None)),  # CHANGED
+        # Phase 1: Compute objective metrics
+        readiness = compute_readiness_score(resource)
+        trust_signals = compute_trust_signals(resource)
+        
+        # Store in model fields
+        resource.metadata_quality_score = readiness['score']
+        resource.readiness_for_review = readiness['ready']
+        resource.trust_signals = trust_signals
+        
+        # Keep detailed checks for admin tools (existing logic)
+        detailed_scores = {
+            'metadata_completeness': readiness['score'],
+            'accessibility_mention': 1.0 if trust_signals['mentions_accessibility'] else 0.0,
+            'license_clarity': self.verify_license(resource.license or ""),
+            'content_freshness': self.assess_recency(resource.updated_at),
             'url_validity': self.verify_url(resource.url),
         }
         
-        # Calculate weighted overall score
-        overall = self.calculate_weighted_score(scores)
+        # Overall score now represents "data quality" not "pedagogical quality"
+        # Average of detailed checks for admin tracking
+        overall = sum(detailed_scores.values()) / len(detailed_scores)
+        resource.overall_quality_score = round(overall, 2)
         
         return {
-            **scores,
-            'overall_score': overall  # CHANGED to match what admin expects
+            **detailed_scores,
+            'overall_score': overall,
+            'readiness_score': readiness['score'],
+            'ready_for_ai_review': readiness['ready'],
+            'trust_signals': trust_signals,
         }
+
 
     
     def calculate_metadata_score(self, resource) -> float:

@@ -104,7 +104,7 @@ class PresetOAIPMHConfigs:
         return {
             "name": "OAPEN Library (OAI-PMH) - OER Books",
             "description": "Harvest open access books from OAPEN via OAI-PMH",
-            "oaipmh_url": "https://library.oapen.org/oai/request",
+            "oaipmh_url": "https://directory.doabooks.org/oai",
             # you can set a books-only setSpec here if needed
             "oaipmh_set_spec": "",
             "request_params": {"metadataPrefix": "oai_dc"},

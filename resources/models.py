@@ -309,8 +309,46 @@ class OERResource(models.Model):
     last_verified = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
 
-    # Quality Metrics
-    overall_quality_score = models.FloatField(default=0.0, db_index=True)
+    # Quality Assessment Fields (Phase 1: Evidence-Based, Transparent)
+    # Legacy field - kept for backwards compatibility with existing assessment service
+    overall_quality_score = models.FloatField(
+        default=0.0, 
+        db_index=True,
+        help_text="Legacy quality score (0-5 scale) - being phased out"
+    )
+    
+    # Phase 1: Objective Metadata Completeness
+    metadata_quality_score = models.FloatField(
+        default=0.0,
+        help_text="Metadata completeness 0-1 (factual, not subjective quality)"
+    )
+    readiness_for_review = models.BooleanField(
+        default=False,
+        help_text="Has sufficient metadata for AI/human quality review (≥70% complete)"
+    )
+    
+    # Phase 1: Transparent Trust Signals (factual indicators, not scores)
+    trust_signals = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Factual trust indicators: from_curated_collection, open_license, updated_recently, etc."
+    )
+    
+    # Phase 2: AI Pedagogical Assessment (future)
+    ai_pedagogy_scores = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="AI pedagogical assessment scores (clarity, objectives, practice, etc.)"
+    )
+    ai_review_summary = models.TextField(
+        blank=True,
+        help_text="AI-generated teaching utility summary"
+    )
+    ai_review_confidence = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Confidence in AI review 0-1"
+    )
     
     class Meta:
         verbose_name = "OER Resource"
