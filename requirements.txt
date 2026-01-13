@@ -26,6 +26,9 @@ langchain>=0.1.0
 langchain-community
 langchain-huggingface
 chromadb>=0.4.0           # If doing in-memory/local embedding experiments
+langchain-ollama>=0.1.0   # Add this line - New Ollama integration
+
+
 
 # --- DJANGO ENHANCEMENTS & UTILS ---
 django-environ>=0.11         # Load .env files for config
@@ -53,6 +56,4 @@ pytesseract>=0.3.10
 # Testing tools
 pytest>=7.0
 
-# Merged from Extra-requirements.txt 
-setup.py
-pyproject.toml
+

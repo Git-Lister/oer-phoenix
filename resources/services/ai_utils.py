@@ -56,9 +56,13 @@ def generate_embeddings(batch_size=50):
         texts = []
         for r in batch:
             if getattr(r, 'extracted_text', None):
-                texts.append(r.extracted_text)
+                texts.append(str(r.extracted_text))  # Ensure string
             else:
-                texts.append(f"{r.title} {r.description or ''}")
+                # Ensure both parts are strings, handle None gracefully
+                title = str(r.title) if r.title else ""
+                description = str(r.description) if r.description else ""
+                texts.append(f"{title} {description}")
+        
         embeddings = model.encode(texts, show_progress_bar=False)
         for resource, emb in zip(batch, embeddings):
             try:
@@ -71,6 +75,7 @@ def generate_embeddings(batch_size=50):
         client = get_vector_db_client()
         # TODO: implement batch upsert to Qdrant if desired
 
+
 def compute_and_store_embedding_for_resource(resource_id):
     """
     Compute and store embedding for a single resource.
@@ -82,11 +87,14 @@ def compute_and_store_embedding_for_resource(resource_id):
         return False
 
     model = get_embedding_model()
-    # Prefer extracted_text if present
+    # Prefer extracted_text if present, ensure string type
     if getattr(resource, 'extracted_text', None):
-        text = resource.extracted_text
+        text = str(resource.extracted_text)
     else:
-        text = f"{resource.title} {resource.description or ''}"
+        title = str(resource.title) if resource.title else ""
+        description = str(resource.description) if resource.description else ""
+        text = f"{title} {description}"
+    
     emb = model.encode([text])[0]
     try:
         resource.content_embedding = emb.tolist() if hasattr(emb, 'tolist') else list(emb)
@@ -98,12 +106,53 @@ def compute_and_store_embedding_for_resource(resource_id):
     except Exception:
         return False
 
-# ---- (Optional: helper for test/demonstration) ----
-def embed_and_index_all_resources():
+
+def get_llm_client():
     """
-    Utility: (Re-)embed and optionally (re-)index ALL resources.
+    Get configured LLM client (Ollama or OpenAI).
+    Configuration via .env:
+      LLM_PROVIDER=ollama|openai
+      OLLAMA_BASE_URL=http://host.docker.internal:11434  # Use host.docker.internal for Docker
+      OLLAMA_MODEL=llama3.2:latest
+      OPENAI_API_KEY=sk-...
     """
-    generate_embeddings()
-    if os.environ.get('VECTOR_BACKEND', 'pgvector') == 'qdrant':
-        client = get_vector_db_client()
-        # TODO: implement full (re-)index if Qdrant or another external DB is used.
+    provider = os.environ.get('LLM_PROVIDER', 'ollama').lower()
+    
+    if provider == 'ollama':
+        try:
+            # Use the new langchain-ollama package
+            from langchain_ollama import OllamaLLM
+            base_url = os.environ.get('OLLAMA_BASE_URL', 'http://host.docker.internal:11434')
+            model = os.environ.get('OLLAMA_MODEL', 'llama3.2:latest')
+            
+            # Test connection
+            llm = OllamaLLM(base_url=base_url, model=model, timeout=30)
+            return llm
+            
+        except ImportError:
+            raise ImportError(
+                "langchain-ollama is not installed. "
+                "Install it with: pip install langchain-ollama"
+            )
+        except Exception as e:
+            raise ConnectionError(
+                f"Cannot connect to Ollama at {base_url}. "
+                f"Make sure Ollama is running and accessible from Docker. "
+                f"Error: {str(e)}"
+            )
+    
+    elif provider == 'openai':
+        try:
+            from langchain_openai import ChatOpenAI
+            return ChatOpenAI(
+                model=os.environ.get('OPENAI_MODEL', 'gpt-4o-mini'),
+                temperature=0.3
+            )
+        except ImportError:
+            raise ImportError(
+                "langchain_openai is not installed. "
+                "Install it with: pip install langchain-openai"
+            )
+    
+    else:
+        raise ValueError(f"Unknown LLM_PROVIDER: {provider}")
