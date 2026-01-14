@@ -5,6 +5,7 @@ Uses unified form with JavaScript for dynamic behavior
 """
 
 import json
+import requests
 from django.contrib import admin
 from django.urls import path, reverse
 from django.shortcuts import render, redirect
@@ -289,16 +290,19 @@ class OERSourceAdmin(admin.ModelAdmin):
             elif source.source_type == 'OAIPMH':
                 harvester = OAIPMHHarvester(source)
             elif source.source_type == 'CSV':
-                harvester = CSVHarvester(source)
-            elif source.source_type == 'MARCXML':
-                harvester = MARCXMLHarvester(source)
-            else:
+            harvester = KBARTHarvester()  # Changed from CSVHarvester            elif source.source_type == 'MARCXML':
+            harvester = MARCXMLHarvester()  # No longer takes source in constructor            else:
                 messages.error(request, f"Unsupported harvester type: {source.source_type}")
                 return HttpResponseRedirect(reverse('admin:resources_oersource_changelist'))
 
             # Start harvest job
-            job = harvester.harvest()
-            source.status = 'active'
+        # Start harvest job
+        if source.source_type == 'CSV':
+            job = harvester.harvest_from_path(source, source.csv_url)
+        elif source.source_type == 'MARCXML':
+            job = harvester.harvest_from_path(source, source.marcxml_url)
+        else:
+            job = harvester.harvest()            source.status = 'active'
             source.save(update_fields=['status'])
             messages.success(request, f"Started harvesting from {source.name} (Job: {job.id})")
         except Exception as e:
@@ -316,15 +320,31 @@ class OERSourceAdmin(admin.ModelAdmin):
             elif source.source_type == 'OAIPMH':
                 harvester = OAIPMHHarvester(source)
             elif source.source_type == 'CSV':
-                harvester = CSVHarvester(source)
-            elif source.source_type == 'MARCXML':
-                harvester = MARCXMLHarvester(source)
-            else:
+            pass  # CSV/KBART uses HTTP check below            elif source.source_type == 'MARCXML':
+            pass  # MARCXML uses HTTP check below            else:
                 messages.error(request, f"Unsupported harvester type: {source.source_type}")
                 return HttpResponseRedirect(reverse('admin:resources_oersource_changelist'))
 
+        # Test connection based on source type
+        if source.source_type == 'CSV' and source.csv_url:
+            # Test CSV/KBART URL with HTTP request
+            try:
+                response = requests.head(source.csv_url, timeout=10)
+                success = response.status_code == 200
+            except Exception:
+                success = False
+        elif source.source_type == 'MARCXML' and source.marcxml_url:
+            # Test MARCXML URL with HTTP request
+            try:
+                response = requests.head(source.marcxml_url, timeout=10)
+                success = response.status_code == 200
+            except Exception:
+                success = False
+        elif source.source_type in ['API', 'OAIPMH']:
+            # Use harvester's test_connection method
             success = harvester.test_connection()
-
+        else:
+            success = False
             if success:
                 source.status = 'active'
                 source.save(update_fields=['status'])
