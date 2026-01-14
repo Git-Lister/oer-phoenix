@@ -33,8 +33,14 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        # Query resources ready for AI review
-        qs = OERResource.objects.filter(readiness_for_review=True)
+        # Query resources ready for AI review WITH extracted content
+        qs = OERResource.objects.filter(
+            readiness_for_review=True
+        ).exclude(
+            extracted_text__isnull=True
+        ).exclude(
+            extracted_text=''
+        ).order_by('-extracted_at')  # Prioritize recently extracted
         
         if not options['force']:
             # Only process resources without existing AI assessment
@@ -47,7 +53,7 @@ class Command(BaseCommand):
         
         if options['limit']:
             qs = qs[:options['limit']]
-        
+
         total = qs.count()
         
         self.stdout.write(
@@ -117,3 +123,4 @@ class Command(BaseCommand):
         self.stdout.write(
             f"\nHigh-confidence assessments (≥0.7): {with_high_confidence}"
         )
+

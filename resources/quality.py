@@ -171,7 +171,7 @@ License: {obj.license}
     confidence = sum(confidence_factors.values()) / len(confidence_factors)
     
     # If confidence too low, return early with placeholder
-    if confidence < 0.4:
+    if confidence < 0.25:
         return {
             'scores': {},
             'summary': 'Insufficient metadata for pedagogical assessment',
@@ -191,14 +191,15 @@ Evaluate the resource on these pedagogical dimensions (0-5 scale):
 4. **instructor_guidance**: Are there teaching notes or guidance for educators?
 5. **accessibility**: Is there evidence of accessibility considerations?
 
-Provide your assessment as JSON:
+IMPORTANT: Respond ONLY with valid JSON. No other text. Use this exact format:
+
 {{
-  "learning_objectives_clarity": <score 0-5>,
-  "pedagogical_structure": <score 0-5>,
-  "practice_opportunities": <score 0-5>,
-  "instructor_guidance": <score 0-5>,
-  "accessibility": <score 0-5>,
-  "summary": "<2-3 sentence teaching utility summary>"
+  "learning_objectives_clarity": 3,
+  "pedagogical_structure": 4,
+  "practice_opportunities": 2,
+  "instructor_guidance": 1,
+  "accessibility": 2,
+  "summary": "Brief 2-3 sentence summary here"
 }}
 
 Base scores on evidence in the metadata/content. Use lower scores when information is unavailable."""
@@ -211,44 +212,52 @@ Base scores on evidence in the metadata/content. Use lower scores when informati
         
         # Handle different response types - ensure we always have a string
         if isinstance(response, list):
-            # If it's a list, join it or take first element
             response_text: str = str(' '.join(str(item) for item in response))
         elif isinstance(response, dict):
-            # If it's already a dict, use it directly
             response_text = str(json.dumps(response))
         else:
-            # Assume it's a string
             response_text = str(response)
         
-        # Parse JSON from response
-        # Handle potential markdown code blocks
+        # Clean response - remove markdown code blocks more aggressively
         response_text = response_text.strip()
-        if '```json' in response_text:
-            # Extract content between ```json and ```
-            parts = response_text.split('```json')
-            if len(parts) > 1:
-                inner_parts = parts[1].split('```')
-                response_text = str(inner_parts if len(inner_parts) > 0 else response_text)
-        elif '```' in response_text:
-            parts = response_text.split('```')
-            if len(parts) > 2:
-                response_text = str(parts)[1]
-            elif len(parts) > 1:
-                response_text = str(parts)[1]
         
-        # Try to find JSON in the response
-        # Look for the first { and last }
+        # Remove ```json ... ``` blocks
+        if '```json' in response_text:
+            # Extract everything between ```json and the closing ```
+            start = response_text.find('```json') + 7  # Length of '```json'
+            end = response_text.find('```', start)
+            if end != -1:
+                response_text = response_text[start:end].strip()
+        elif '```' in response_text:
+            # Handle plain ``` blocks
+            parts = response_text.split('```')
+            if len(parts) >= 3:
+                response_text = parts[1].strip()
+        
+        # Find JSON object - look for first { and last }
         start_idx = response_text.find('{')
         end_idx = response_text.rfind('}')
         
         if start_idx != -1 and end_idx != -1:
             response_text = response_text[start_idx:end_idx+1]
+        else:
+            raise ValueError("No JSON object found in response")
         
-        result = json.loads(response_text.strip())
+        # Clean up common JSON issues
+        import re
+        # Remove trailing commas
+        response_text = re.sub(r",(\s*[}\]])", r"\1", response_text)
+        
+        # Parse JSON
+        result = json.loads(response_text)
         
         # Extract scores and summary
-        scores = {k: v for k, v in result.items() if k != 'summary'}
+        scores = {k: v for k, v in result.items() if k != 'summary' and isinstance(v, (int, float))}
         summary = result.get('summary', '')
+        
+        # Ensure summary is a string
+        if not isinstance(summary, str):
+            summary = str(summary)
         
         return {
             'scores': scores,
@@ -256,22 +265,23 @@ Base scores on evidence in the metadata/content. Use lower scores when informati
             'confidence': round(confidence, 2)
         }
         
-    except json.JSONDecodeError as e:
-        # Log the problematic response for debugging
-        response_preview = str(response)[:200] if response is not None else 'No response'
+    except (json.JSONDecodeError, ValueError) as e:
+        # Show more of the response for debugging
+        response_preview = str(response)[:500] if response is not None else 'No response'
         return {
             'scores': {},
-            'summary': f'JSON parse error: {str(e)[:100]}. Response preview: {response_preview}',
+            'summary': f'Parse error: {str(e)[:80]}... | Response: {response_preview}',
             'confidence': 0.0
         }
     except Exception as e:
-        # Fallback on error
-        response_preview = str(response)[:100] if response is not None else 'No response'
+        response_preview = str(response)[:200] if response is not None else 'No response'
         return {
             'scores': {},
-            'summary': f'Assessment failed: {str(e)[:100]} | Response: {response_preview}',
+            'summary': f'Error: {str(e)[:100]}',
             'confidence': 0.0
         }
+
+
 
 
 def update_ai_pedagogy_fields(obj, save=False):
