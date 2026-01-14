@@ -47,10 +47,12 @@ class BaseHarvester(ABC):
             logger.exception('Failed to write sample records to HarvestJob.log_messages')
 
     def upsert_resource(self, record_data):
-        # Ensure URL key exists for matching; empty URL leads to skipped upsert outside
+        """Upsert resource with automatic metadata enrichment"""
         try:
-            from resources.models import OERResource  # lazy import OK
-
+            from resources.models import OERResource
+            from resources.services.metadata_enrichment import MetadataEnricher
+            from resources.quality import update_quality_fields
+            
             def _t(v, maxlen=None):
                 if v is None:
                     return ""
@@ -58,12 +60,12 @@ class BaseHarvester(ABC):
                 if maxlen and len(s) > maxlen:
                     return s[:maxlen]
                 return s
-
+            
             normalised_type = _coerce_normalised_type(
                 record_data.get("normalised_type")
             )
             resource_type = _t(record_data.get("resource_type", ""), maxlen=100)
-
+            
             defaults = {
                 "title": _t(record_data.get("title", ""), maxlen=500),
                 "description": record_data.get("description", ""),
@@ -80,15 +82,29 @@ class BaseHarvester(ABC):
                 "doi": _t(record_data.get("doi", ""), maxlen=255),
                 "source": self.source,
             }
-
+            
             resource, created = OERResource.objects.update_or_create(
                 url=_t(record_data.get("url", ""), maxlen=500),
                 defaults=defaults,
             )
+            
+            # NEW: Auto-enrich metadata on harvest
+            enricher = MetadataEnricher()
+            changes = enricher.enrich_resource(resource)
+            
+            if changes:
+                logger.info(f"Enriched resource {resource.id}: {list(changes.keys())}")
+                resource.save()
+            
+            # NEW: Auto-calculate quality scores
+            update_quality_fields(resource, save=True)
+            
             return resource, created
+            
         except Exception:
             logger.exception("Failed to upsert resource")
             raise
+
 
     def request(self, method, url, headers=None, params=None, timeout=15, max_attempts=3):
         return utils.request_with_retry(method, url, headers=headers, params=params, timeout=timeout, max_attempts=max_attempts)
