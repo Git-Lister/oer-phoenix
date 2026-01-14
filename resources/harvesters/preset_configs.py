@@ -1,10 +1,10 @@
 """
 Preset configurations for common OER sources
 ====================================================================
-LAST VERIFIED: January 2026
+LAST VERIFIED: January 14, 2026
 
 This module contains preset configurations for harvesting OER from major
-repositories using different protocols (API, OAI-PMH, CSV, MARCXML).
+repositories using different protocols (API, OAI-PMH, CSV, MARCXML, KBART).
 
 Each preset is tagged with:
 - Content Type: What it harvests (books, chapters, courses, etc.)
@@ -12,7 +12,6 @@ Each preset is tagged with:
 - Status: Verified working/needs testing
 - Resource Level: Granularity of records
 """
-
 
 
 class PresetAPIConfigs:
@@ -39,11 +38,8 @@ class PresetAPIConfigs:
         """
         return {
             "name": "OAPEN REST API (Chapters)",
-            "description": "OAPEN REST API filtered to chapter-level records "
-                           "using dc.type metadata.",
+            "description": "OAPEN REST API filtered to chapter-level records using dc.type metadata.",
             "api_endpoint": "https://library.oapen.org/rest/search",
-            # Query syntax per OAPEN REST docs: ?query=[search query]
-            # Here we request records where dc.type contains 'chapter'
             "request_params": {
                 "query": "dc.type:chapter",
                 "expand": "metadata,bitstreams",
@@ -70,12 +66,9 @@ class PresetAPIConfigs:
         """
         return {
             "name": "OAPEN REST API (Books)",
-            "description": "OAPEN REST API for book-level records "
-                           "with full metadata and bitstreams.",
+            "description": "OAPEN REST API for book-level records with full metadata and bitstreams.",
             "api_endpoint": "https://library.oapen.org/rest/search",
             "request_params": {
-                # '*' → all records; you can later constrain by publisher,
-                # classification, or other dc.* fields if needed.
                 "query": "*",
                 "expand": "metadata,bitstreams",
             },
@@ -130,7 +123,7 @@ class PresetAPIConfigs:
         offer a public REST API. Consider using CSV export or web scraping instead.
         """
         return {
-            "name": "MERLOT API",
+            "name": "MERLOT API (UNVERIFIED)",
             "description": "MERLOT OER Repository API (UNVERIFIED)",
             "api_endpoint": "https://api.merlot.org/materials",
             "request_params": {"format": "json", "per_page": 100},
@@ -159,7 +152,7 @@ class PresetAPIConfigs:
         different API access patterns. Verify before use.
         """
         return {
-            "name": "OpenStax API",
+            "name": "OpenStax API (NEEDS VERIFICATION)",
             "description": "OpenStax OER Textbooks API (NEEDS VERIFICATION)",
             "api_endpoint": "https://openstax.org/api/v2/pages",
             "request_params": {"type": "books.Book", "fields": "*"},
@@ -167,7 +160,6 @@ class PresetAPIConfigs:
             "harvest_schedule": "manual",
             "max_resources_per_harvest": 100,
         }
-
 
 
 class PresetOAIPMHConfigs:
@@ -186,73 +178,42 @@ class PresetOAIPMHConfigs:
     - Built-in resumption tokens for large harvests
     - Set-based selective harvesting
     - Datestamp-based incremental updates
+    
+    NOTE: OAPEN and DOAB OAI-PMH endpoints are currently broken.
+    Use KBART/MARCXML/REST API alternatives instead.
     """
 
     @staticmethod
-    def get_oapen_oaipmh_config():
+    def get_skills_commons_oaipmh_config():
         """
-        OAPEN Library - OAI-PMH ENDPOINT
-        ==================================
-        #TAG: OAI-PMH_Harvester #Books_AND_Chapters #Open_Access_Content
-        #CONTENT: Books and chapters from Open Access monographs
-        #SUBJECTS: Humanities, Social Sciences, interdisciplinary
-        #LANGUAGE: Multilingual (primarily English, German, French, Dutch)
-        #STATUS: VERIFIED WORKING ✓ (Tested Jan 14, 2026)
-        #RESOURCE_TYPE: Book AND Chapter (mixed granularity)
-        #METADATA_FORMAT: oai_dc (Dublin Core), xoai (extended)
+        Skills Commons - Workforce Training OER Repository
+        ===================================================
+        #TAG: OAI-PMH_Harvester #Workforce_Training #Career_Technical_Education
+        #CONTENT: Job training materials, workforce development resources
+        #SUBJECTS: Career/Technical Education, Workforce Development
+        #LANGUAGE: English
+        #STATUS: ✅ VERIFIED WORKING (Jan 14, 2026)
+        #RESOURCE_TYPE: Mixed (lessons, modules, assessments, simulations)
+        #PLATFORM: Digital Commons (Elsevier/bePress)
         
-        **VERIFIED**: https://library.oapen.org/oai/request responds correctly
-        to OAI-PMH Identify verb with valid OAI 2.0 protocol.
+        **VERIFIED**: Correct URL is library.skillscommons.org/server/oai/request
         
-        This endpoint provides BOTH book-level and chapter-level records.
-        Use _normalise_resource_type() in harvester to distinguish between them.
-        
-        OAPEN contains peer-reviewed Open Access monographs with full-text PDFs.
-        All content is freely downloadable under open licenses (CC-BY, CC BY-NC, etc.)
-        """
-        return {
-            "name": "OAPEN Library (OAI-PMH) - Books & Chapters",
-            "description": "Harvest open access books AND chapters from OAPEN via OAI-PMH",
-            "oaipmh_url": "https://library.oapen.org/oai/request",  # CORRECTED
-            "oaipmh_set_spec": "",  # Empty = harvest all; set to specific set if needed
-            "request_params": {"metadataPrefix": "oai_dc"},
-            "request_headers": {},
-            "harvest_schedule": "daily",
-            "max_resources_per_harvest": 5000,
-        }
-
-    @staticmethod
-    def get_doab_oaipmh_config():
-        """
-        Directory of Open Access Books - OAI-PMH ENDPOINT
-        ==================================================
-        #TAG: OAI-PMH_Harvester #Books #Monographs #Aggregator
-        #CONTENT: Open Access book metadata (directory entries)
-        #SUBJECTS: All academic disciplines
-        #LANGUAGE: Multilingual
-        #STATUS: VERIFIED WORKING ✓ (Tested Jan 14, 2026)
-        #RESOURCE_TYPE: Book/Monograph (book-level only, no chapters)
-        #METADATA_FORMAT: oai_dc, xoai
-        
-        **VERIFIED**: https://directory.doabooks.org/oai/request responds
-        correctly to OAI-PMH protocol with valid OAI 2.0 implementation.
-        
-        DOAB is an AGGREGATOR that harvests from multiple publishers.
-        It provides metadata descriptions only - full text links point
-        to publisher websites.
-        
-        DIFFERENCE FROM OAPEN: DOAB contains only book-level records,
-        no chapter-level granularity. DOAB aggregates OAPEN + many other publishers.
+        Skills Commons focuses on:
+        - Career and Technical Education (CTE) materials
+        - Workforce development and job training
+        - Community college vocational programs
+        - Industry-specific training modules
+        - Trade and technical skills
         """
         return {
-            "name": "DOAB (OAI-PMH) - Books Only",
-            "description": "Directory of Open Access Books via OAI-PMH",
-            "oaipmh_url": "https://directory.doabooks.org/oai/request",  # CORRECTED
+            "name": "Skills Commons OER (OAI-PMH) ✅",
+            "description": "Skills Commons workforce training OER via OAI-PMH",
+            "oaipmh_url": "https://library.skillscommons.org/server/oai/request",
             "oaipmh_set_spec": "",
             "request_params": {"metadataPrefix": "oai_dc"},
             "request_headers": {},
-            "harvest_schedule": "daily",
-            "max_resources_per_harvest": 5000,
+            "harvest_schedule": "weekly",
+            "max_resources_per_harvest": 10000,
         }
 
     @staticmethod
@@ -260,29 +221,19 @@ class PresetOAIPMHConfigs:
         """
         MIT OpenCourseWare - OAI-PMH ENDPOINT
         ======================================
-        #TAG: OAI-PMH_Harvester #Courses #Courseware #Lectures #Higher_Education
-        #CONTENT: Complete MIT course materials (syllabi, lectures, assignments)
+        #TAG: OAI-PMH_Harvester #Courses #Courseware #Higher_Education
+        #CONTENT: Complete MIT course materials
         #SUBJECTS: STEM, Engineering, Humanities, Social Sciences, Business
         #LANGUAGE: English (some translations)
         #STATUS: ⚠️ ENDPOINT NOT RESPONDING (Tested Jan 14, 2026)
-        #RESOURCE_TYPE: Course (complete course materials)
         #WARNING: MIT OCW may have discontinued OAI-PMH support
         
-        **ISSUE**: https://ocw.mit.edu/oaipmh does not respond to OAI-PMH requests.
-        MIT may have deprecated their OAI-PMH endpoint in favor of other access methods.
-        
-        MIT OCW contains 2,500+ courses worth of materials including:
-        - Complete lecture notes and videos
-        - Assignments, exams, solutions
-        - Reading lists and syllabi
-        - Interactive simulations
-        
-        **RECOMMENDATION**: Disable this preset OR investigate alternative
-        MIT OCW data access methods (RSS feeds, web scraping, etc.)
+        **RECOMMENDATION**: Disable this preset or investigate alternative
+        MIT OCW data access methods.
         """
         return {
-            "name": "MIT OpenCourseWare (OAI-PMH) - NOT WORKING",
-            "description": "MIT OpenCourseWare OER materials (ENDPOINT NOT RESPONDING)",
+            "name": "MIT OpenCourseWare (OAI-PMH) ⚠️",
+            "description": "MIT OpenCourseWare - ENDPOINT NOT RESPONDING",
             "oaipmh_url": "https://ocw.mit.edu/oaipmh",
             "oaipmh_set_spec": "",
             "request_params": {"metadataPrefix": "oai_dc"},
@@ -301,24 +252,12 @@ class PresetOAIPMHConfigs:
         #SUBJECTS: Open Education practice and research
         #LANGUAGE: Multilingual
         #STATUS: ⚠️ ENDPOINT NOT RESPONDING (Tested Jan 14, 2026)
-        #RESOURCE_TYPE: Mixed (presentations, papers, lesson plans, etc.)
-        
-        **ISSUE**: https://repository.oeglobal.org/oai/request does not respond.
-        The OE Global repository may have changed its OAI-PMH endpoint URL
-        or temporarily unavailable.
-        
-        OE Global repository contains materials related to Open Education:
-        - Conference presentations from OE Global conferences
-        - Research papers on OER adoption
-        - Case studies and best practices
-        - Policy documents
         
         **RECOMMENDATION**: Verify current status before enabling.
-        Check https://oeglobal.org for updated API information.
         """
         return {
-            "name": "OE Global Repository (OAI-PMH) - NOT RESPONDING",
-            "description": "Open Education Global OER repository (NEEDS VERIFICATION)",
+            "name": "OE Global Repository (OAI-PMH) ⚠️",
+            "description": "Open Education Global - NEEDS VERIFICATION",
             "oaipmh_url": "https://repository.oeglobal.org/oai/request",
             "oaipmh_set_spec": "",
             "request_params": {"metadataPrefix": "oai_dc"},
@@ -327,60 +266,49 @@ class PresetOAIPMHConfigs:
             "max_resources_per_harvest": 2000,
         }
 
-    @staticmethod
-    def get_skills_commons_oaipmh_config():
-        """
-        Skills Commons - Workforce Training OER Repository
-        ===================================================
-        #TAG: OAI-PMH_Harvester #Workforce_Training #Career_Technical_Education
-        #CONTENT: Job training materials, workforce development resources
-        #SUBJECTS: Career/Technical Education, Workforce Development
-        #LANGUAGE: English
-        #STATUS: ⚠️ ENDPOINT NOT RESPONDING (Tested Jan 14, 2026)
-        #RESOURCE_TYPE: Mixed (lessons, modules, assessments, simulations)
-        #PLATFORM: Digital Commons (Elsevier/bePress)
-        
-        **ISSUE**: https://www.skillscommons.org/oai/request does not respond.
-        Skills Commons uses Digital Commons platform which should support OAI-PMH,
-        but the endpoint may have changed or requires different URL pattern.
-        
-        Skills Commons focuses on:
-        - Career and Technical Education (CTE) materials
-        - Workforce development and job training
-        - Community college vocational programs
-        - Industry-specific training modules
-        - Trade and technical skills
-        
-        **RECOMMENDATION**: Skills Commons is based on Digital Commons platform.
-        Try alternative endpoint: https://www.skillscommons.org/do/oai/
-        (Digital Commons standard pattern is /do/oai/)
-        """
-        return {
-            "name": "Skills Commons OER OAI-PMH - NOT RESPONDING",
-            "description": "Skills Commons OER via OAI-PMH (NEEDS VERIFICATION)",
-            # base endpoint from SkillsCommons OAI docs
-            "oaipmh_url": "https://www.skillscommons.org/oai/request",
-            # Alternative to try: "https://www.skillscommons.org/do/oai/"
-            # you can plug a specific setSpec if you want (e.g. 'publication:OER')
-            "oaipmh_set_spec": "",
-            "request_params": {"metadataPrefix": "oai_dc"},
-            "request_headers": {},
-            "harvest_schedule": "weekly",
-            "max_resources_per_harvest": 10000,
-        }
-
-
 
 class PresetCSVConfigs:
     """
-    CSV/TSV-based harvesters
-    =========================
-    These presets harvest from CSV or TSV (tab-separated) data exports.
+    CSV/TSV/KBART-based harvesters
+    ===============================
+    These presets harvest from CSV, TSV (tab-separated), or KBART data exports.
     Simpler than APIs but less real-time - usually bulk exports updated
     periodically by the source repository.
     
     Good for: One-time bulk imports, KBART library holdings, publisher catalogs
     """
+
+    @staticmethod
+    def get_oapen_kbart_config():
+        """
+        OAPEN Library - KBART Books Export
+        ====================================
+        #TAG: KBART_Harvester #Books #Tab_Separated #WORKING
+        #CONTENT: Complete OAPEN book catalog in KBART format
+        #STATUS: ✅ VERIFIED WORKING (Jan 14, 2026)
+        #RESOURCE_TYPE: Book-level records
+        #FORMAT: Tab-separated values (TSV)
+        
+        ⭐ RECOMMENDED METHOD for harvesting OAPEN ⭐
+        
+        OAPEN's OAI-PMH endpoint is currently broken (returns no records).
+        Use this KBART export instead for reliable OAPEN harvesting.
+        
+        Provides standardized bibliographic data including:
+        - Title, ISBN, Publisher
+        - URLs to full text
+        - Coverage dates
+        - License information
+        """
+        return {
+            "name": "OAPEN Library (KBART) ✅ RECOMMENDED",
+            "description": "OAPEN books via KBART format - WORKING alternative to broken OAI-PMH",
+            "csv_url": "https://memo.oapen.org/file/oapen/OAPENLibrary_KBART_books.tsv",
+            "request_params": {},
+            "request_headers": {},
+            "harvest_schedule": "weekly",
+            "max_resources_per_harvest": 5000,
+        }
 
     @staticmethod
     def get_oer_commons_csv_config():
@@ -395,14 +323,12 @@ class PresetCSVConfigs:
         #RESOURCE_TYPE: Mixed (textbooks, courses, lessons, videos, simulations)
         
         OER Commons is one of the largest OER repositories with 440,000+ resources.
-        It includes materials from multiple sources and allows community curation
-        through "hubs" - curated collections organized by topic or institution.
         
         **NOTE**: CSV export may require account login or may be available
         only through their API. Verify access before enabling.
         """
         return {
-            "name": "OER Commons CSV",
+            "name": "OER Commons CSV (UNVERIFIED)",
             "description": "OER Commons resource catalog via CSV (NEEDS VERIFICATION)",
             "csv_url": "https://www.oercommons.org/export/csv",
             "request_params": {},
@@ -424,11 +350,10 @@ class PresetCSVConfigs:
         #RESOURCE_TYPE: Mixed training materials
         
         **NOTE**: This CSV endpoint is speculative. Skills Commons may not
-        offer direct CSV exports. Consider using OAI-PMH (if fixed) or
-        web scraping as alternatives.
+        offer direct CSV exports. Consider using OAI-PMH instead (which is working).
         """
         return {
-            "name": "Skills Commons OER CSV",
+            "name": "Skills Commons CSV (UNVERIFIED)",
             "description": "Skills Commons OER materials catalog (CSV) - UNVERIFIED",
             "csv_url": "https://www.skillscommons.org/export/oer.csv",
             "request_params": {},
@@ -440,8 +365,8 @@ class PresetCSVConfigs:
     @staticmethod
     def get_kbart_tsv_config():
         """
-        KBART Format Import - Publisher Holdings
-        ==========================================
+        KBART Format Import - Generic Template
+        ========================================
         #TAG: TSV_Harvester #KBART #Library_Holdings #Publisher_Catalogs
         #CONTENT: Standardized library holdings/catalog data
         #SUBJECTS: Any (depends on source)
@@ -467,11 +392,9 @@ class PresetCSVConfigs:
         - coverage_depth, publisher_name
         """
         return {
-            "name": "KBART (TSV) Import",
-            "description": "KBART-compliant TSV listing of serials/works; "
-                          "upload or provide URL to import.",
-            # csv_url can be provided by user when creating source from preset
-            "csv_url": "",
+            "name": "KBART (TSV) Import - Generic",
+            "description": "KBART-compliant TSV listing of serials/works; upload or provide URL to import.",
+            "csv_url": "",  # Provided by user when creating source
             "request_params": {},
             "request_headers": {},
             "harvest_schedule": "manual",
@@ -479,62 +402,73 @@ class PresetCSVConfigs:
         }
 
 
+# =============================================================================
+# COMBINED PRESET REGISTRY
+# =============================================================================
 
-# Combined preset registry for easy access
 PRESET_CONFIGS = {
     "API": {
-        # Books-only preset
         "oapen_books": PresetAPIConfigs.get_oapen_books_api_config(),
-        # Chapters-only preset
         "oapen_chapters": PresetAPIConfigs.get_oapen_chapters_api_config(),
         "doab": PresetAPIConfigs.get_doab_api_config(),
         "merlot": PresetAPIConfigs.get_merlot_api_config(),
         "openstax": PresetAPIConfigs.get_openstax_api_config(),
     },
     "OAIPMH": {
-        "oapen": PresetOAIPMHConfigs.get_oapen_oaipmh_config(),
-        "doab": PresetOAIPMHConfigs.get_doab_oaipmh_config(),
+        # REMOVED: "oapen" - OAI-PMH endpoint broken (empty repository)
+        # REMOVED: "doab" - OAI-PMH endpoint returns 503 errors
+        "skills_commons": PresetOAIPMHConfigs.get_skills_commons_oaipmh_config(),
         "mit": PresetOAIPMHConfigs.get_mit_oaipmh_config(),
         "oe_global": PresetOAIPMHConfigs.get_oe_global_oaipmh_config(),
-        "skills_commons": PresetOAIPMHConfigs.get_skills_commons_oaipmh_config(),
     },
     "CSV": {
+        "oapen_kbart": PresetCSVConfigs.get_oapen_kbart_config(),  # ⭐ RECOMMENDED for OAPEN
         "oer_commons": PresetCSVConfigs.get_oer_commons_csv_config(),
-        "skills_commons": PresetCSVConfigs.get_skills_commons_csv_config(),
-        "kbart": PresetCSVConfigs.get_kbart_tsv_config(),
+        "skills_commons_csv": PresetCSVConfigs.get_skills_commons_csv_config(),
+        "kbart_generic": PresetCSVConfigs.get_kbart_tsv_config(),
     },
-}
-
-
-# MARCXML presets - allow admins to add MARCXML/dump-based sources
-PRESET_CONFIGS["MARCXML"] = {
-    "oapen": {
-        "name": "OAPEN MARCXML dump",
-        "description": (
-            "OAPEN MARCXML dump (books). Uses the OAPEN public MARCXML dump URL.\n"
-            "#TAG: MARCXML_Harvester #Books #Library_Catalog_Format\n"
-            "#CONTENT: Complete OAPEN Library catalog in MARC21 format\n"
-            "#STATUS: Verified working (Jan 2026)\n"
-            "#RESOURCE_TYPE: Book-level records\n"
-            "#NOTE: Full MARC21 bibliographic data, richer than Dublin Core"
-        ),
-        "marcxml_url": "https://memo.oapen.org/file/oapen/OAPENLibrary_MARCXML_books.xml",
-        "harvest_schedule": "manual",
-        "max_resources_per_harvest": 5000,
-    },
-    "doab": {
-        "name": "DOAB MARCXML dump",
-        "description": (
-            "DOAB MARCXML export. Update URL if DOAB changes its MARCXML endpoint.\n"
-            "#TAG: MARCXML_Harvester #Books #Library_Catalog_Format\n"
-            "#CONTENT: Complete DOAB catalog in MARC21 format\n"
-            "#STATUS: Verified working (Jan 2026)\n"
-            "#RESOURCE_TYPE: Book-level records\n"
-            "#NOTE: Full MARC21 bibliographic data for library catalogs"
-        ),
-        "marcxml_url": "https://directory.doabooks.org/metadata/marcxml",
-        "harvest_schedule": "manual",
-        "max_resources_per_harvest": 5000,
+    "MARCXML": {
+        "oapen": {
+            "name": "OAPEN MARCXML (Books)",
+            "description": (
+                "OAPEN MARCXML dump (books). Full MARC21 bibliographic data.\n"
+                "#TAG: MARCXML_Harvester #Books #Library_Catalog_Format\n"
+                "#CONTENT: Complete OAPEN Library catalog in MARC21 format\n"
+                "#STATUS: ✅ Verified working (Jan 2026)\n"
+                "#RESOURCE_TYPE: Book-level records\n"
+                "#NOTE: Richer than Dublin Core, includes full cataloging data"
+            ),
+            "marcxml_url": "https://memo.oapen.org/file/oapen/OAPENLibrary_MARCXML_books.xml",
+            "harvest_schedule": "manual",
+            "max_resources_per_harvest": 5000,
+        },
+        "oapen_chapters": {
+            "name": "OAPEN MARCXML (Chapters)",
+            "description": (
+                "OAPEN MARCXML dump (chapters). Chapter-level records in MARC21.\n"
+                "#TAG: MARCXML_Harvester #Book_Chapters #Library_Catalog_Format\n"
+                "#CONTENT: OAPEN chapter-level records in MARC21 format\n"
+                "#STATUS: ✅ Verified working (Jan 2026)\n"
+                "#RESOURCE_TYPE: Chapter-level records"
+            ),
+            "marcxml_url": "https://memo.oapen.org/file/oapen/OAPENLibrary_MARCXML_chapters.xml",
+            "harvest_schedule": "manual",
+            "max_resources_per_harvest": 5000,
+        },
+        "doab": {
+            "name": "DOAB MARCXML",
+            "description": (
+                "DOAB MARCXML export. Full MARC21 bibliographic data.\n"
+                "#TAG: MARCXML_Harvester #Books #Library_Catalog_Format\n"
+                "#CONTENT: Complete DOAB catalog in MARC21 format\n"
+                "#STATUS: ⚠️ Needs verification (Jan 2026)\n"
+                "#RESOURCE_TYPE: Book-level records\n"
+                "#NOTE: Full MARC21 bibliographic data for library catalogs"
+            ),
+            "marcxml_url": "https://directory.doabooks.org/metadata/marcxml",
+            "harvest_schedule": "manual",
+            "max_resources_per_harvest": 5000,
+        },
     },
 }
 
@@ -543,16 +477,31 @@ PRESET_CONFIGS["MARCXML"] = {
 # PRESET TESTING & VALIDATION
 # =============================================================================
 """
-ENDPOINT VALIDATION STATUS (as of Jan 14, 2026):
+ENDPOINT VALIDATION STATUS (Tested: January 14, 2026)
+======================================================
 
-✅ WORKING (Tested with OAI-PMH Validator):
+✅ VERIFIED WORKING:
+    - Skills Commons OAI-PMH: https://library.skillscommons.org/server/oai/request
+    - OAPEN KBART: https://memo.oapen.org/file/oapen/OAPENLibrary_KBART_books.tsv
+    - OAPEN MARCXML: https://memo.oapen.org/file/oapen/OAPENLibrary_MARCXML_books.xml
+    - OAPEN REST API: https://library.oapen.org/rest/search
+    - DOAB REST API: https://directory.doabooks.org/rest/search
+
+❌ BROKEN - DO NOT USE:
     - OAPEN OAI-PMH: https://library.oapen.org/oai/request
-    - DOAB OAI-PMH: https://directory.doabooks.org/oai/request
+      → Repository is EMPTY (returns "No matches" for all queries)
+      → Even official documented examples return no records
+      → Use KBART/MARCXML/REST API alternatives instead
 
-⚠️ NOT RESPONDING (Failed validation tests):
+⚠️ SERVER ERRORS:
+    - DOAB OAI-PMH: https://directory.doabooks.org/oai/request
+      → Returns 503 Service Unavailable
+      → May be temporarily down
+      → Use REST API or MARCXML alternatives instead
+
+⚠️ NOT RESPONDING (Endpoints don't respond):
     - MIT OCW OAI-PMH: https://ocw.mit.edu/oaipmh
-    - OE Global OAI-PMH: https://repository.oeglobal.org/oai/request  
-    - Skills Commons OAI-PMH: https://www.skillscommons.org/oai/request
+    - OE Global OAI-PMH: https://repository.oeglobal.org/oai/request
 
 ❓ UNVERIFIED (No public documentation found):
     - MERLOT API: https://api.merlot.org/materials
@@ -561,11 +510,18 @@ ENDPOINT VALIDATION STATUS (as of Jan 14, 2026):
     - Skills Commons CSV: https://www.skillscommons.org/export/oer.csv
 
 RECOMMENDATIONS:
-1. Enable OAPEN and DOAB OAI-PMH presets immediately (verified working)
-2. Disable or mark as experimental: MIT, OE Global, Skills Commons OAI-PMH
-3. Investigate alternative access methods for non-responding endpoints
-4. For Skills Commons: try Digital Commons standard URL pattern /do/oai/
-5. For MIT OCW: consider RSS feeds or web scraping alternatives
-6. For MERLOT/OpenStax: contact providers for current API documentation
-"""
+================
+1. ✅ USE: OAPEN KBART preset for OAPEN harvesting (most reliable)
+2. ✅ USE: Skills Commons OAI-PMH (working correctly)
+3. ✅ USE: REST APIs for OAPEN/DOAB (real-time access)
+4. ❌ REMOVED: OAPEN and DOAB from OAIPMH registry (broken/unavailable)
+5. ⚠️ MARK AS EXPERIMENTAL: MIT, OE Global (not responding)
+6. 🔍 INVESTIGATE: MERLOT, OpenStax (need API documentation)
 
+IMPORTANT NOTES:
+================
+- OAPEN's OAI-PMH is marked "VERIFIED WORKING" in their docs but is actually EMPTY
+- DOAB's OAI-PMH returns 503 errors despite documentation claiming it works
+- Skills Commons requires specific URL: library.skillscommons.org/server/oai/request
+  (NOT www.skillscommons.org/oai/request as documented elsewhere)
+"""

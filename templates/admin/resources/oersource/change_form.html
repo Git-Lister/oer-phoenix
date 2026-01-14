@@ -3,6 +3,7 @@
 
 {% block extrahead %}
 {{ block.super }}
+
 <style>
 .config-section { background: var(--body-bg); padding: 15px; margin: 10px 0; border: 1px solid var(--border-color); border-radius: 4px; transition: all 0.3s ease; }
 .config-section.hidden { display: none; }
@@ -11,45 +12,189 @@
 .preset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin: 10px 0; }
 .preset-button { background: var(--primary); color: var(--primary-fg); border: none; padding: 8px 15px; border-radius: 3px; cursor: pointer; font-size: 13px; margin: 5px 5px 5px 0; }
 .preset-button.specific { background: var(--secondary); font-size: 12px; padding: 6px 12px; }
+.preset-button.warning { background: #ff9800; border: 1px solid #f57c00; }
+.preset-button.disabled { background: #9e9e9e; opacity: 0.6; cursor: not-allowed; }
+.preset-button.recommended { background: #4caf50; border: 2px solid #388e3c; font-weight: bold; }
 .preset-applied-banner { background: #e6ffed; border: 1px solid #b7f0c2; padding: 10px; margin: 10px 0; border-radius: 4px; }
+.preset-status { font-size: 11px; color: #666; margin-top: 3px; }
+.preset-status.verified { color: #4caf50; font-weight: bold; }
+.preset-status.needs-check { color: #ff9800; }
+.preset-status.not-working { color: #f44336; }
+.preset-status.recommended { color: #4caf50; font-weight: bold; }
 </style>
+
 <script src="{% static 'admin/js/oer_source_dynamic.js' %}"></script>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     if (window.toggleConfigSections) { window.toggleConfigSections(); }
-
+    
     window.applyPreset = window.applyPreset || function(sourceType, presetKey) {
-        // Delegates to global applyPreset defined in this template namespace
         if (typeof window.__appliedPresets === 'undefined') window.__appliedPresets = {};
-        // Map of presets (kept minimal; real presets live in preset_configs.py)
+        
+        // ============================================================================
+        // PRESET DEFINITIONS - Synced with preset_configs.py (Jan 14, 2026)
+        // ============================================================================
         const presets = {
             'API': {
-                'oapen': { name: 'OAPEN REST API', description: 'Search OAPEN books via REST API', endpoint: 'https://library.oapen.org/rest/search', params: '{"query":"*","expand":"metadata"}', headers: '{"Accept":"application/json"}' },
-                'oapen_books': { name: 'OAPEN REST API (Books)', description: 'OAPEN API restricted to book-level records', endpoint: 'https://library.oapen.org/rest/search', params: '{"query":"type:book","expand":"metadata"}', headers: '{"Accept":"application/json"}' },
-                'doab': { name: 'DOAB REST API', description: 'Directory of Open Access Books via REST API', endpoint: 'https://directory.doabooks.org/rest/search', params: '{"query":"*","expand":"metadata"}', headers: '{"Accept":"application/json"}' }
+                'oapen_books': { 
+                    name: 'OAPEN REST API (Books)', 
+                    description: 'Complete Open Access books/monographs from OAPEN via REST API', 
+                    endpoint: 'https://library.oapen.org/rest/search', 
+                    params: '{"query":"*","expand":"metadata,bitstreams"}', 
+                    headers: '{"Accept":"application/json"}',
+                    schedule: 'manual',
+                    max_harvest: 2000
+                },
+                'oapen_chapters': { 
+                    name: 'OAPEN REST API (Chapters)', 
+                    description: 'Book chapters from OAPEN filtered by dc.type metadata', 
+                    endpoint: 'https://library.oapen.org/rest/search', 
+                    params: '{"query":"dc.type:chapter","expand":"metadata,bitstreams"}', 
+                    headers: '{"Accept":"application/json"}',
+                    schedule: 'manual',
+                    max_harvest: 2000
+                },
+                'doab': { 
+                    name: 'DOAB REST API', 
+                    description: 'Directory of Open Access Books via REST API (metadata aggregator)', 
+                    endpoint: 'https://directory.doabooks.org/rest/search', 
+                    params: '{"query":"*","expand":"metadata,bitstreams"}', 
+                    headers: '{"Accept":"application/json"}',
+                    schedule: 'manual',
+                    max_harvest: 2000
+                },
+                'merlot': { 
+                    name: 'MERLOT API (UNVERIFIED)', 
+                    description: 'Learning objects repository - endpoint needs verification', 
+                    endpoint: 'https://api.merlot.org/materials', 
+                    params: '{"format":"json","per_page":100}', 
+                    headers: '{"Accept":"application/json"}',
+                    schedule: 'manual',
+                    max_harvest: 500,
+                    warning: true
+                },
+                'openstax': { 
+                    name: 'OpenStax API (NEEDS VERIFICATION)', 
+                    description: 'Open textbooks - endpoint needs verification', 
+                    endpoint: 'https://openstax.org/api/v2/pages', 
+                    params: '{"type":"books.Book","fields":"*"}', 
+                    headers: '{"Accept":"application/json"}',
+                    schedule: 'manual',
+                    max_harvest: 100,
+                    warning: true
+                }
             },
             'OAIPMH': {
-                'oapen': { name: 'OAPEN Library - OER Books', description: 'Harvest open access books from OAPEN via OAI-PMH', url: 'https://library.oapen.org/oai/request', set_spec: '' },
-                'doab': { name: 'DOAB OAI-PMH', description: 'Directory of Open Access Books via OAI-PMH', url: 'https://directory.doabooks.org/oai/request', set_spec: '' }
+                // REMOVED: 'oapen' - OAI-PMH endpoint broken (empty repository)
+                // REMOVED: 'doab' - OAI-PMH endpoint returns 503 errors
+                'skills_commons': { 
+                    name: 'Skills Commons OER (OAI-PMH) ✅', 
+                    description: 'Workforce training materials via OAI-PMH (VERIFIED Jan 2026)', 
+                    url: 'https://library.skillscommons.org/server/oai/request', 
+                    set_spec: '',
+                    schedule: 'weekly',
+                    max_harvest: 10000
+                },
+                'mit': { 
+                    name: 'MIT OCW (OAI-PMH) ⚠️', 
+                    description: 'MIT OpenCourseWare - ENDPOINT NOT RESPONDING (Jan 2026)', 
+                    url: 'https://ocw.mit.edu/oaipmh', 
+                    set_spec: '',
+                    schedule: 'weekly',
+                    max_harvest: 5000,
+                    disabled: true
+                },
+                'oe_global': { 
+                    name: 'OE Global Repository ⚠️', 
+                    description: 'Open Education Global - ENDPOINT NOT RESPONDING (Jan 2026)', 
+                    url: 'https://repository.oeglobal.org/oai/request', 
+                    set_spec: '',
+                    schedule: 'weekly',
+                    max_harvest: 2000,
+                    disabled: true
+                }
             },
-
             'CSV': {
-                'oer_commons': { name: 'OER Commons CSV', description: 'OER Commons resource catalog via CSV', url: 'https://www.oercommons.org/export/csv' },
-                'skills_commons': { name: 'Skills Commons OER', description: 'Skills Commons OER materials catalog', url: 'https://www.skillscommons.org/export/oer.csv' }
-                , 'kbart': { name: 'KBART (TSV)', description: 'KBART-compliant TSV (upload or URL)', url: '' }
+                'oapen_kbart': { 
+                    name: 'OAPEN Library (KBART) ✅ RECOMMENDED', 
+                    description: 'OAPEN books via KBART format - WORKING alternative to broken OAI-PMH (VERIFIED Jan 2026)', 
+                    url: 'https://memo.oapen.org/file/oapen/OAPENLibrary_KBART_books.tsv',
+                    schedule: 'weekly',
+                    max_harvest: 5000
+                },
+                'oer_commons': { 
+                    name: 'OER Commons CSV', 
+                    description: 'OER Commons resource catalog via CSV export (needs verification)', 
+                    url: 'https://www.oercommons.org/export/csv',
+                    schedule: 'monthly',
+                    max_harvest: 5000,
+                    warning: true
+                },
+                'skills_commons_csv': { 
+                    name: 'Skills Commons CSV', 
+                    description: 'Skills Commons OER materials (endpoint uncertain)', 
+                    url: 'https://www.skillscommons.org/export/oer.csv',
+                    schedule: 'monthly',
+                    max_harvest: 10000,
+                    warning: true
+                },
+                'kbart_generic': { 
+                    name: 'KBART (TSV) - Generic', 
+                    description: 'KBART-compliant TSV for publisher catalogs - provide URL when creating', 
+                    url: '',
+                    schedule: 'manual',
+                    max_harvest: 10000
+                }
             },
             'MARCXML': {
-                'oapen': { name: 'OAPEN MARCXML dump', description: 'OAPEN MARCXML dump (books)', marcxml_url: 'https://memo.oapen.org/file/oapen/OAPENLibrary_MARCXML_books.xml' },
-                'doab': { name: 'DOAB MARCXML dump', description: 'DOAB MARCXML dump (if available)', marcxml_url: 'https://directory.doabooks.org/metadata/marcxml' }
+                'oapen': { 
+                    name: 'OAPEN MARCXML (Books)', 
+                    description: 'Complete OAPEN book catalog in MARC21 format (richest metadata)', 
+                    marcxml_url: 'https://memo.oapen.org/file/oapen/OAPENLibrary_MARCXML_books.xml',
+                    schedule: 'manual',
+                    max_harvest: 5000
+                },
+                'oapen_chapters': { 
+                    name: 'OAPEN MARCXML (Chapters)', 
+                    description: 'OAPEN chapter-level records in MARC21 format', 
+                    marcxml_url: 'https://memo.oapen.org/file/oapen/OAPENLibrary_MARCXML_chapters.xml',
+                    schedule: 'manual',
+                    max_harvest: 5000
+                },
+                'doab': { 
+                    name: 'DOAB MARCXML', 
+                    description: 'Complete DOAB catalog in MARC21 format', 
+                    marcxml_url: 'https://directory.doabooks.org/metadata/marcxml',
+                    schedule: 'manual',
+                    max_harvest: 5000
+                }
             }
         };
-
+        
         const preset = presets[sourceType] && presets[sourceType][presetKey];
         if (!preset) return;
-
+        
+        // Check if preset is disabled
+        if (preset.disabled) {
+            if (!confirm(`Warning: This preset is currently not working.\n\n${preset.description}\n\nDo you still want to apply it for testing?`)) {
+                return;
+            }
+        }
+        
+        // Check if preset needs verification
+        if (preset.warning) {
+            if (!confirm(`Note: This preset needs verification.\n\n${preset.description}\n\nProceed with caution.`)) {
+                return;
+            }
+        }
+        
+        // Apply preset values
         document.getElementById('id_source_type').value = sourceType;
         document.getElementById('id_name').value = preset.name || '';
         document.getElementById('id_description').value = preset.description || '';
+        
+        // Type-specific fields
         if (sourceType === 'API') {
             document.getElementById('id_api_endpoint').value = preset.endpoint || '';
             document.getElementById('id_request_params').value = preset.params || '';
@@ -60,70 +205,167 @@ document.addEventListener('DOMContentLoaded', function() {
         } else if (sourceType === 'CSV') {
             document.getElementById('id_csv_url').value = preset.url || '';
         } else if (sourceType === 'MARCXML') {
-            const el = document.getElementById('id_marcxml_url'); if (el) el.value = preset.marcxml_url || '';
+            const el = document.getElementById('id_marcxml_url');
+            if (el) el.value = preset.marcxml_url || '';
         }
-
-        document.getElementById('id_harvest_schedule').value = 'manual';
-        document.getElementById('id_max_resources_per_harvest').value = 1000;
-        document.getElementById('id_is_active').checked = true;
-
+        
+        // Common fields
+        document.getElementById('id_harvest_schedule').value = preset.schedule || 'manual';
+        document.getElementById('id_max_resources_per_harvest').value = preset.max_harvest || 1000;
+        document.getElementById('id_is_active').checked = !preset.disabled;
+        
         if (window.toggleConfigSections) window.toggleConfigSections();
         document.getElementById('id_name').focus();
+        
         showPresetBanner(`Applied ${preset.name} preset configuration!`);
     };
-
+    
     function showPresetBanner(message) {
-        let existing = document.querySelector('.preset-applied-banner'); if (existing) existing.remove();
-        const banner = document.createElement('div'); banner.className = 'preset-applied-banner'; banner.textContent = message;
-        const container = document.querySelector('.module.aligned') || document.body; container.insertBefore(banner, container.firstChild);
+        let existing = document.querySelector('.preset-applied-banner');
+        if (existing) existing.remove();
+        
+        const banner = document.createElement('div');
+        banner.className = 'preset-applied-banner';
+        banner.textContent = message;
+        
+        const container = document.querySelector('.module.aligned') || document.body;
+        container.insertBefore(banner, container.firstChild);
+        
         setTimeout(() => { banner.remove(); }, 6000);
     }
 });
 </script>
+
 {% endblock %}
 
 {% block after_field_sets %}
-<div class="module aligned">
-    <h2>Quick Configuration Presets</h2>
-    <div class="description">Use the buttons below to quickly configure common OER sources with pre-configured settings.</div>
 
+<div class="module aligned">
+    <h2>📦 Quick Configuration Presets</h2>
+    <div class="description">
+        Use the buttons below to quickly configure common OER sources with pre-configured settings.
+        <strong>Verified presets are marked with ✅</strong>
+    </div>
+    
+    <!-- API SOURCES -->
     <div class="config-section">
         <div class="preset-title">🌐 API Sources</div>
-        <p>API-based OER sources – metadata quality varies by provider; often good for fresher data and incremental updates.</p>
+        <p>REST API-based OER sources – good for fresh data and incremental updates. Most flexible but metadata quality varies.</p>
         <div class="preset-grid">
-            <button type="button" class="preset-button specific" data-type="API" onclick="applyPreset('API', 'oapen')">OAPEN REST API</button>
-            <button type="button" class="preset-button specific" data-type="API" onclick="applyPreset('API', 'oapen_books')">OAPEN (Books)</button>
-            <button type="button" class="preset-button specific" data-type="API" onclick="applyPreset('API', 'doab')">DOAB API</button>
+            <button type="button" class="preset-button specific" onclick="applyPreset('API', 'oapen_books')">
+                OAPEN (Books)
+                <div class="preset-status verified">✅ Verified</div>
+            </button>
+            <button type="button" class="preset-button specific" onclick="applyPreset('API', 'oapen_chapters')">
+                OAPEN (Chapters)
+                <div class="preset-status verified">✅ Verified</div>
+            </button>
+            <button type="button" class="preset-button specific" onclick="applyPreset('API', 'doab')">
+                DOAB API
+                <div class="preset-status verified">✅ Verified</div>
+            </button>
+            <button type="button" class="preset-button specific warning" onclick="applyPreset('API', 'merlot')">
+                MERLOT
+                <div class="preset-status needs-check">⚠️ Needs Check</div>
+            </button>
+            <button type="button" class="preset-button specific warning" onclick="applyPreset('API', 'openstax')">
+                OpenStax
+                <div class="preset-status needs-check">⚠️ Needs Check</div>
+            </button>
         </div>
     </div>
-
+    
+    <!-- OAI-PMH SOURCES -->
     <div class="config-section">
         <div class="preset-title">📚 OAI-PMH Sources</div>
-        <p>OAI-PMH repositories – good general Dublin Core metadata; type/detail depends on each repository’s implementation.</p>
+        <p>OAI-PMH protocol repositories – standardized Dublin Core metadata. Best for library/repository interoperability.</p>
+        <p style="background: #fff3cd; border: 1px solid #ffc107; padding: 8px; border-radius: 3px; font-size: 12px; margin: 10px 0;">
+            ⚠️ <strong>Note:</strong> OAPEN and DOAB OAI-PMH endpoints are currently broken. Use KBART or MARCXML presets instead (see below).
+        </p>
         <div class="preset-grid">
-            <button type="button" class="preset-button specific" data-type="OAIPMH" onclick="applyPreset('OAIPMH', 'oapen')">OAPEN OAI-PMH</button>
-            <button type="button" class="preset-button specific" data-type="OAIPMH" onclick="applyPreset('OAIPMH', 'doab')">DOAB OAI-PMH</button>
+            <button type="button" class="preset-button specific" onclick="applyPreset('OAIPMH', 'skills_commons')">
+                Skills Commons
+                <div class="preset-status verified">✅ Verified Jan 2026</div>
+            </button>
+            <button type="button" class="preset-button specific disabled" onclick="applyPreset('OAIPMH', 'mit')">
+                MIT OCW
+                <div class="preset-status not-working">❌ Not Responding</div>
+            </button>
+            <button type="button" class="preset-button specific disabled" onclick="applyPreset('OAIPMH', 'oe_global')">
+                OE Global
+                <div class="preset-status not-working">❌ Not Responding</div>
+            </button>
         </div>
     </div>
-
+    
+    <!-- CSV/KBART SOURCES -->
     <div class="config-section">
-        <div class="preset-title">📊 CSV Sources</div>
-        <p>CSV file sources – simple curated lists; often less frequently updated and may omit richer relationships.</p>
+        <div class="preset-title">📊 CSV/TSV/KBART Sources</div>
+        <p>CSV/KBART file sources – simple curated lists. Good for one-time bulk imports or publisher catalogs.</p>
+        <p style="background: #e8f5e9; border: 1px solid #4caf50; padding: 8px; border-radius: 3px; font-size: 12px; margin: 10px 0;">
+            ⭐ <strong>Recommended:</strong> Use OAPEN KBART for reliable OAPEN harvesting (OAI-PMH endpoint is broken).
+        </p>
         <div class="preset-grid">
-            <button type="button" class="preset-button specific" data-type="CSV" onclick="applyPreset('CSV', 'oer_commons')">OER Commons</button>
-            <button type="button" class="preset-button specific" data-type="CSV" onclick="applyPreset('CSV', 'skills_commons')">Skills Commons</button>
-                <button type="button" class="preset-button specific" data-type="CSV" onclick="applyPreset('CSV', 'kbart')">KBART (TSV)</button>
+            <button type="button" class="preset-button specific recommended" onclick="applyPreset('CSV', 'oapen_kbart')">
+                OAPEN (KBART) ⭐
+                <div class="preset-status recommended">✅ RECOMMENDED</div>
+            </button>
+            <button type="button" class="preset-button specific warning" onclick="applyPreset('CSV', 'oer_commons')">
+                OER Commons CSV
+                <div class="preset-status needs-check">⚠️ Needs Verification</div>
+            </button>
+            <button type="button" class="preset-button specific warning" onclick="applyPreset('CSV', 'skills_commons_csv')">
+                Skills Commons CSV
+                <div class="preset-status needs-check">⚠️ Needs Verification</div>
+            </button>
+            <button type="button" class="preset-button specific" onclick="applyPreset('CSV', 'kbart_generic')">
+                KBART (Generic)
+                <div class="preset-status">Template - provide URL</div>
+            </button>
         </div>
     </div>
-
+    
+    <!-- MARCXML SOURCES -->
     <div class="config-section">
         <div class="preset-title">📜 MARCXML / Dump Sources</div>
-        <p>MARCXML dumps – richest bibliographic metadata; best for book/chapter typing, identifiers, and subject fields.</p>
+        <p>MARCXML dumps – richest bibliographic metadata with full MARC21 fields. Best for detailed cataloging.</p>
         <div class="preset-grid">
-            <button type="button" class="preset-button specific" data-type="MARCXML" onclick="applyPreset('MARCXML', 'oapen')">OAPEN MARCXML</button>
-            <button type="button" class="preset-button specific" data-type="MARCXML" onclick="applyPreset('MARCXML', 'doab')">DOAB MARCXML</button>
+            <button type="button" class="preset-button specific" onclick="applyPreset('MARCXML', 'oapen')">
+                OAPEN MARCXML (Books)
+                <div class="preset-status verified">✅ Book-level metadata</div>
+            </button>
+            <button type="button" class="preset-button specific" onclick="applyPreset('MARCXML', 'oapen_chapters')">
+                OAPEN MARCXML (Chapters)
+                <div class="preset-status verified">✅ Chapter-level metadata</div>
+            </button>
+            <button type="button" class="preset-button specific" onclick="applyPreset('MARCXML', 'doab')">
+                DOAB MARCXML
+                <div class="preset-status verified">✅ Complete catalog</div>
+            </button>
         </div>
     </div>
-
+    
+    <!-- LEGEND -->
+    <div style="margin-top: 20px; padding: 15px; background: var(--darkened-bg); border: 1px solid var(--border-color); border-radius: 4px; font-size: 12px; color: var(--body-fg);">
+        <strong style="color: var(--body-fg);">Status Legend:</strong><br>
+        <span style="color: #66bb6a;">✅ Verified</span> = Tested and working (Jan 2026)<br>
+        <span style="color: #4caf50; font-weight: bold;">⭐ RECOMMENDED</span> = Best option for this source<br>
+        <span style="color: #ffa726;">⚠️ Needs Check</span> = Endpoint requires verification before use<br>
+        <span style="color: #ef5350;">❌ Not Responding</span> = Endpoint currently unavailable (disabled)
+    </div>
+    
+    <!-- HELP TEXT -->
+    <div style="margin-top: 15px; padding: 10px; background: var(--darkened-bg); border-left: 4px solid #2196f3; font-size: 12px; color: var(--body-fg);">
+        <strong style="color: var(--body-fg);">💡 Tip:</strong> After applying a preset, you can customize any fields before saving. 
+        Always test the connection before starting a full harvest.
+        <br><br>
+        <strong style="color: var(--body-fg);">📝 Important Changes (Jan 2026):</strong>
+        <ul style="margin: 10px 0 0 20px; color: var(--body-fg);">
+            <li><strong>OAPEN OAI-PMH:</strong> Removed - endpoint returns no records. Use KBART or MARCXML instead.</li>
+            <li><strong>DOAB OAI-PMH:</strong> Removed - endpoint returns 503 errors. Use REST API or MARCXML instead.</li>
+            <li><strong>Skills Commons OAI-PMH:</strong> URL corrected - now working with library.skillscommons.org/server/oai/request</li>
+        </ul>
+    </div>
 </div>
+
 {% endblock %}
