@@ -26,7 +26,6 @@ from resources.harvesters.kbart_harvester import KBARTHarvester
 from resources.services import ai_utils  # NEW: for embedding generation
 from resources.services import metadata_enricher
 
-
 # ---------------------------------------------------------------------------- #
 #                               Admin Actions                                   #
 # ---------------------------------------------------------------------------- #
@@ -58,7 +57,6 @@ def generate_embeddings_action(modeladmin, request, queryset):
             f"Successfully generated embeddings for {updated} resources.",
             level=messages.SUCCESS
         )
-
 
 @admin.action(description="Run quality assessment for selected resources")
 def run_quality_assessment_action(modeladmin, request, queryset):
@@ -97,7 +95,6 @@ def run_quality_assessment_action(modeladmin, request, queryset):
             f"Successfully assessed {updated} resources.",
             level=messages.SUCCESS
         )
-
 
 @admin.action(description="Run quality assessment for ALL resources (batch)")
 def run_quality_assessment_all_action(modeladmin, request, queryset):
@@ -148,7 +145,6 @@ def run_quality_assessment_all_action(modeladmin, request, queryset):
             level=messages.SUCCESS
         )
 
-
 # ---------------------------------------------------------------------------- #
 #                               Inline Admin                                    #
 # ---------------------------------------------------------------------------- #
@@ -156,7 +152,6 @@ def run_quality_assessment_all_action(modeladmin, request, queryset):
 class OERSourceFieldMappingInline(admin.TabularInline):
     model = OERSourceFieldMapping
     extra = 1
-
 
 # ---------------------------------------------------------------------------- #
 #                               OER Source Admin                               #
@@ -290,19 +285,22 @@ class OERSourceAdmin(admin.ModelAdmin):
             elif source.source_type == 'OAIPMH':
                 harvester = OAIPMHHarvester(source)
             elif source.source_type == 'CSV':
-            harvester = KBARTHarvester()  # Changed from CSVHarvester            elif source.source_type == 'MARCXML':
-            harvester = MARCXMLHarvester()  # No longer takes source in constructor            else:
+                harvester = KBARTHarvester()  # Changed from CSVHarvester
+            elif source.source_type == 'MARCXML':
+                harvester = MARCXMLHarvester()  # No longer takes source in constructor
+            else:
                 messages.error(request, f"Unsupported harvester type: {source.source_type}")
                 return HttpResponseRedirect(reverse('admin:resources_oersource_changelist'))
 
             # Start harvest job
-        # Start harvest job
-        if source.source_type == 'CSV':
-            job = harvester.harvest_from_path(source, source.csv_url)
-        elif source.source_type == 'MARCXML':
-            job = harvester.harvest_from_path(source, source.marcxml_url)
-        else:
-            job = harvester.harvest()            source.status = 'active'
+            if source.source_type == 'CSV':
+                job = harvester.harvest_from_path(source, source.csv_url)
+            elif source.source_type == 'MARCXML':
+                job = harvester.harvest_from_path(source, source.marcxml_url)
+            else:
+                job = harvester.harvest()
+            
+            source.status = 'active'
             source.save(update_fields=['status'])
             messages.success(request, f"Started harvesting from {source.name} (Job: {job.id})")
         except Exception as e:
@@ -311,51 +309,122 @@ class OERSourceAdmin(admin.ModelAdmin):
         return HttpResponseRedirect(reverse('admin:resources_oersource_changelist'))
 
     def test_connection_view(self, request, source_id):
-        """Test connection to the source"""
-        source = OERSource.objects.get(id=source_id)
+        """Test connection to the source endpoint based on source type."""
+        source = self.get_object(request, source_id)
+        
+        if source is None:
+            messages.error(request, "Source not found.")
+            return HttpResponseRedirect(reverse('admin:resources_oersource_changelist'))
+        
+        success = False
+        error_message = None
+        test_url = None
+        
         try:
-            # Determine the harvester class based on source configuration
-            if source.source_type == 'API':
-                harvester = APIHarvester(source)
-            elif source.source_type == 'OAIPMH':
-                harvester = OAIPMHHarvester(source)
-            elif source.source_type == 'CSV':
-            pass  # CSV/KBART uses HTTP check below            elif source.source_type == 'MARCXML':
-            pass  # MARCXML uses HTTP check below            else:
-                messages.error(request, f"Unsupported harvester type: {source.source_type}")
-                return HttpResponseRedirect(reverse('admin:resources_oersource_changelist'))
-
-        # Test connection based on source type
-        if source.source_type == 'CSV' and source.csv_url:
-            # Test CSV/KBART URL with HTTP request
-            try:
-                response = requests.head(source.csv_url, timeout=10)
-                success = response.status_code == 200
-            except Exception:
-                success = False
-        elif source.source_type == 'MARCXML' and source.marcxml_url:
-            # Test MARCXML URL with HTTP request
-            try:
-                response = requests.head(source.marcxml_url, timeout=10)
-                success = response.status_code == 200
-            except Exception:
-                success = False
-        elif source.source_type in ['API', 'OAIPMH']:
-            # Use harvester's test_connection method
-            success = harvester.test_connection()
-        else:
-            success = False
-            if success:
-                source.status = 'active'
-                source.save(update_fields=['status'])
-                messages.success(request, f"Successfully connected to {source.name}")
-            else:
-                source.status = 'error'
-                source.save(update_fields=['status'])
-                messages.warning(request, f"Could not connect to {source.name}")
+            # Route based on source type and available endpoint
+            if source.source_type == 'OAIPMH' and source.oaipmh_url:
+                # Test OAI-PMH with Identify verb
+                test_url = source.oaipmh_url.rstrip('?') + "?verb=Identify"
+                response = requests.get(test_url, timeout=30)
                 
+                if response.status_code == 200:
+                    # Check if response contains valid OAI-PMH XML
+                    if 'OAI-PMH' in response.text and 'Identify' in response.text:
+                        success = True
+                    else:
+                        error_message = "URL returned 200 but does not appear to be valid OAI-PMH"
+                else:
+                    error_message = f"HTTP {response.status_code}: {response.reason}"
+            
+            elif source.source_type == 'CSV' and source.csv_url:
+                # Test CSV/KBART URL - check if file is accessible
+                test_url = source.csv_url
+                try:
+                    response = requests.head(test_url, timeout=30, allow_redirects=True)
+                    # If HEAD not supported, try GET with stream
+                    if response.status_code == 405:
+                        response = requests.get(test_url, timeout=30, stream=True)
+                        response.close()
+                except requests.exceptions.Timeout:
+                    error_message = "Connection timed out after 30 seconds"
+                    raise
+                
+                if response.status_code == 200:
+                    success = True
+                    # Optional: check Content-Type header
+                    content_type = response.headers.get('Content-Type', '')
+                    if content_type and 'text' not in content_type and 'csv' not in content_type and 'tsv' not in content_type:
+                        messages.warning(request, f"Warning: Content-Type is '{content_type}' (expected text/csv or text/tab-separated-values)")
+                else:
+                    error_message = f"HTTP {response.status_code}: {response.reason}"
+            
+            elif source.source_type == 'MARCXML' and source.marcxml_url:
+                # Test MARCXML URL - check if XML file is accessible
+                test_url = source.marcxml_url
+                try:
+                    response = requests.head(test_url, timeout=30, allow_redirects=True)
+                    # If HEAD not supported, try GET with stream
+                    if response.status_code == 405:
+                        response = requests.get(test_url, timeout=30, stream=True)
+                        response.close()
+                except requests.exceptions.Timeout:
+                    error_message = "Connection timed out after 30 seconds"
+                    raise
+                
+                if response.status_code == 200:
+                    success = True
+                    # Optional: check Content-Type header
+                    content_type = response.headers.get('Content-Type', '')
+                    if content_type and 'xml' not in content_type:
+                        messages.warning(request, f"Warning: Content-Type is '{content_type}' (expected application/xml or text/xml)")
+                else:
+                    error_message = f"HTTP {response.status_code}: {response.reason}"
+            
+            elif source.source_type == 'API' and source.api_endpoint:
+                # Test REST API endpoint
+                test_url = source.api_endpoint
+                try:
+                    response = requests.head(test_url, timeout=30, allow_redirects=True)
+                    # If HEAD not supported, try GET
+                    if response.status_code == 405:
+                        response = requests.get(test_url, timeout=30)
+                except requests.exceptions.Timeout:
+                    error_message = "Connection timed out after 30 seconds"
+                    raise
+                
+                if response.status_code in [200, 201]:
+                    success = True
+                else:
+                    error_message = f"HTTP {response.status_code}: {response.reason}"
+            
+            else:
+                error_message = f"No valid endpoint configured for {source.source_type} source"
+        
+        except requests.exceptions.Timeout as e:
+            if not error_message:
+                error_message = f"Connection timed out: {str(e)}"
+        except requests.exceptions.ConnectionError as e:
+            error_message = f"Connection error: {str(e)}"
+        except requests.exceptions.RequestException as e:
+            error_message = f"Request error: {str(e)}"
         except Exception as e:
-            messages.error(request, f"Connection test failed: {str(e)}")
+            error_message = f"Unexpected error: {str(e)}"
+        
+        # Update source status and show result
+        if success:
+            source.status = 'active'
+            source.save(update_fields=['status'])
+            messages.success(
+                request,
+                f"✅ Connection successful to {test_url}"
+            )
+        else:
+            source.status = 'error'
+            source.save(update_fields=['status'])
+            messages.error(
+                request,
+                f"❌ Connection failed: {error_message}<br>Tested URL: {test_url}"
+            )
         
         return HttpResponseRedirect(reverse('admin:resources_oersource_changelist'))
 
@@ -364,6 +433,7 @@ class OERSourceAdmin(admin.ModelAdmin):
         extra_context = extra_context or {}
         extra_context['kbart_upload_url'] = reverse('resources:kbart_upload')
         return super().changelist_view(request, extra_context=extra_context)
+
 # ---------------------------------------------------------------------------- #
 #                               Harvest Job Admin                              #
 # ---------------------------------------------------------------------------- #
@@ -439,7 +509,7 @@ class HarvestJobAdmin(admin.ModelAdmin):
             minutes, seconds = divmod(total_seconds, 60)
             return f"{minutes}m {seconds}s"
         return mark_safe('<em>In progress...</em>')
-        duration_display.short_description = 'Duration'
+    duration_display.short_description = 'Duration'
 
     def results_summary(self, obj):
         return format_html(
@@ -452,7 +522,6 @@ class HarvestJobAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return False
-
 
 # ---------------------------------------------------------------------------- #
 #                               OER Resource Admin                             #
@@ -556,7 +625,6 @@ class OERResourceAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
-
 
 # ---------------------------------------------------------------------------- #
 #                               Talis Push Job Admin                           #

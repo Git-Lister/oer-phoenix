@@ -3,6 +3,7 @@ from django.core.validators import URLValidator
 from django.utils.translation import gettext_lazy as _
 from .models import OERSource, OERResource
 
+
 class OERSourceForm(forms.ModelForm):
     """Unified form for all OER source types - used in admin"""
     
@@ -12,7 +13,9 @@ class OERSourceForm(forms.ModelForm):
             'name', 'description', 'source_type', 'is_active', 
             'harvest_schedule', 'max_resources_per_harvest',
             'api_endpoint', 'api_key', 'request_headers', 'request_params',
-            'oaipmh_url', 'oaipmh_set_spec', 'csv_url'
+            'oaipmh_url', 'oaipmh_set_spec', 
+            'csv_url',
+            'marcxml_url'  # ← ADDED
         ]
     
     def __init__(self, *args, **kwargs):
@@ -21,15 +24,15 @@ class OERSourceForm(forms.ModelForm):
         self.fields['api_endpoint'].required = False
         self.fields['oaipmh_url'].required = False
         self.fields['csv_url'].required = False
+        self.fields['marcxml_url'].required = False  # ← ADDED
         
         # Add URL validators
         url_validator = URLValidator()
         self.fields['api_endpoint'].validators.append(url_validator)
         self.fields['oaipmh_url'].validators.append(url_validator)
-
+        self.fields['marcxml_url'].validators.append(url_validator)  # ← ADDED
 
         # Optional KBART upload (admin-only non-model field)
-        from django.utils.translation import gettext_lazy as _
         self.fields['kbart_file'] = forms.FileField(
             required=False,
             label=_('KBART file (TSV)'),
@@ -43,8 +46,10 @@ class OERSourceForm(forms.ModelForm):
         # Validate based on selected source type
         if source_type == 'API' and not cleaned_data.get('api_endpoint'):
             self.add_error('api_endpoint', 'API endpoint is required for API sources')
+        
         elif source_type == 'OAIPMH' and not cleaned_data.get('oaipmh_url'):
             self.add_error('oaipmh_url', 'OAI-PMH URL is required for OAI-PMH sources')
+        
         elif source_type == 'CSV':
             # For CSV sources allow either a URL or a KBART file upload (kbart_file)
             csv_url = cleaned_data.get('csv_url')
@@ -53,12 +58,27 @@ class OERSourceForm(forms.ModelForm):
                 self.add_error('csv_url', 'CSV URL or KBART file is required for CSV/KBART sources')
             # If a CSV URL is provided, validate it's a URL here (field-level validators were disabled)
             if csv_url:
+                url_validator = URLValidator()
                 try:
                     url_validator(csv_url)
                 except Exception:
                     self.add_error('csv_url', 'Enter a valid URL.')
         
+        # ← ADDED THIS ENTIRE BLOCK
+        elif source_type == 'MARCXML':
+            marcxml_url = cleaned_data.get('marcxml_url')
+            if not marcxml_url:
+                self.add_error('marcxml_url', 'MARCXML URL is required for MARCXML sources')
+            # Validate MARCXML URL format
+            if marcxml_url:
+                url_validator = URLValidator()
+                try:
+                    url_validator(marcxml_url)
+                except Exception:
+                    self.add_error('marcxml_url', 'Enter a valid URL.')
+        
         return cleaned_data
+
 
 # Keep your existing forms for the non-admin views
 class HarvesterTypeForm(forms.Form):
@@ -74,6 +94,7 @@ class HarvesterTypeForm(forms.Form):
         widget=forms.Select(attrs={'class': 'form-control'})
     )
 
+
 class BaseHarvesterForm(forms.ModelForm):
     """Base form class for harvester forms"""
     
@@ -87,10 +108,11 @@ class BaseHarvesterForm(forms.ModelForm):
         
     def add_default_validators(self):
         """Add common validators to fields"""
-        url_fields = ['api_endpoint', 'oaipmh_url', 'csv_url']
+        url_fields = ['api_endpoint', 'oaipmh_url', 'csv_url', 'marcxml_url']  # ← ADDED marcxml_url
         for field_name in url_fields:
             if field_name in self.fields:
                 self.fields[field_name].validators.append(URLValidator())
+
 
 class APIHarvesterForm(BaseHarvesterForm):
     """Form for creating/updating an API harvester source"""
@@ -114,6 +136,7 @@ class APIHarvesterForm(BaseHarvesterForm):
         if not self.instance.pk:
             self.instance.source_type = 'API'
 
+
 class OAIPMHHarvesterForm(BaseHarvesterForm):
     """Form for creating/updating an OAI-PMH harvester source"""
     
@@ -132,6 +155,7 @@ class OAIPMHHarvesterForm(BaseHarvesterForm):
         if not self.instance.pk:
             self.instance.source_type = 'OAIPMH'
 
+
 class CSVHarvesterForm(BaseHarvesterForm):
     """Form for creating/updating a CSV harvester source"""
     
@@ -147,6 +171,7 @@ class CSVHarvesterForm(BaseHarvesterForm):
         # Set initial source_type for new instances
         if not self.instance.pk:
             self.instance.source_type = 'CSV'
+
 
 # Keep your other forms unchanged
 class CSVUploadForm(forms.Form):
@@ -196,6 +221,7 @@ class KBARTUploadForm(forms.Form):
             raise forms.ValidationError(_('Please provide a KBART file or URL.'))
         return cleaned
 
+
 class ExportForm(forms.Form):
     """Form for selecting export format"""
     
@@ -207,6 +233,7 @@ class ExportForm(forms.Form):
         widget=forms.RadioSelect,
         label=_("Choose Export Format")
     )
+
 
 class TalisExportForm(forms.Form):
     """Form for Talis export with resource selection"""

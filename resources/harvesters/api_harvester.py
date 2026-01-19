@@ -93,18 +93,21 @@ class APIHarvester(BaseHarvester):
         """Fetch and process records from API"""
         try:
             config = self._get_config()
-
+            
             # Build the request
             url = config["base_url"]
             headers = config.get("headers", {})
             params = config.get("params", {})
-
+            
             # Add API key if provided
             if config.get("api_key"):
                 if "Authorization" not in headers:
                     headers["Authorization"] = f"Bearer {config['api_key']}"
-
+            
             logger.info(f"Fetching API records from: {url}")
+            logger.info(f"Request params: {params}")
+            logger.info(f"Request headers: {headers}")
+            
             try:
                 response = self.request(
                     "get",
@@ -115,15 +118,40 @@ class APIHarvester(BaseHarvester):
                     max_attempts=4,
                 )
             except Exception as e:
-                logger.error(f"API fetch failed after retries: {e}")
-                raise ValidationError("API fetch failed after retries") from e
-
-            data = response.json()
+                error_msg = f"API fetch failed: {type(e).__name__}: {str(e)}"
+                logger.error(error_msg)
+                raise ValidationError(error_msg) from e
+            
+            # Log response details for debugging
+            logger.info(f"API response status: {response.status_code}")
+            logger.info(f"API response content-type: {response.headers.get('content-type', 'unknown')}")
+            
+            # Check if response is actually JSON
+            content_type = response.headers.get('content-type', '')
+            if 'application/json' not in content_type and 'application/xml' in content_type:
+                error_msg = f"API returned XML instead of JSON. Content-Type: {content_type}"
+                logger.error(error_msg)
+                logger.error(f"Response preview: {response.text[:500]}")
+                raise ValidationError(error_msg)
+            
+            try:
+                data = response.json()
+            except ValueError as e:
+                error_msg = f"Failed to parse JSON response: {str(e)}"
+                logger.error(error_msg)
+                logger.error(f"Response content preview: {response.text[:500]}")
+                raise ValidationError(error_msg) from e
+            
             return self._process_api_response(data)
-
+            
+        except ValidationError:
+            # Re-raise ValidationErrors as-is
+            raise
         except Exception as e:
-            logger.error(f"API request failed: {str(e)}")
-            raise ValidationError(f"API request failed: {str(e)}") from e
+            error_msg = f"Unexpected error in API harvest: {type(e).__name__}: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            raise ValidationError(error_msg) from e
+
 
     def _process_api_response(self, data):
         """Process API response into OER resource data"""
