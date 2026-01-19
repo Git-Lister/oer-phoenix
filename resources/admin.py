@@ -284,6 +284,7 @@ class OERSourceAdmin(admin.ModelAdmin):
                 harvester = APIHarvester(source)
             elif source.source_type == 'OAIPMH':
                 harvester = OAIPMHHarvester(source)
+<<<<<<< HEAD
             elif source.source_type == 'CSV':
                 harvester = KBARTHarvester()  # Changed from CSVHarvester
             elif source.source_type == 'MARCXML':
@@ -302,6 +303,27 @@ class OERSourceAdmin(admin.ModelAdmin):
             
             source.status = 'active'
             source.save(update_fields=['status'])
+=======
+        elif source.source_type == 'CSV':
+            from resources.harvesters.kbart_harvester import KBARTHarvester
+            harvester = KBARTHarvester()
+            
+        elif source.source_type == 'MARCXML':
+            from resources.harvesters.marcxml_harvester import MARCXMLHarvester
+            harvester = MARCXMLHarvester()
+            
+        else:
+            messages.error(request, f"Unsupported harvester type: {source.source_type}")
+            return HttpResponseRedirect(reverse('admin:resources_oersource_changelist'))
+        
+        # Start harvest job
+        if source.source_type == 'CSV':
+            job = harvester.harvest_from_path(source, source.csv_url)
+        elif source.source_type == 'MARCXML':
+            job = harvester.harvest_from_path(source, source.marcxml_url)
+        else:
+            job = harvester.harvest()
+>>>>>>> 6ac6ae5ad52142885bac0591567bb27a840b51b9
             messages.success(request, f"Started harvesting from {source.name} (Job: {job.id})")
         except Exception as e:
             messages.error(request, f"Harvesting failed: {str(e)}")
