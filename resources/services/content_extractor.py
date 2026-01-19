@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 # Configurable limits
 MAX_DOWNLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
-REQUEST_TIMEOUT = 20
+REQUEST_TIMEOUT = 60  # increased from 20s to handle slow PDF servers (handle.net, OAPEN)
 THROTTLE_SECONDS = 1.0  # minimum seconds between requests to same host (per-process)
 
 # Session with retries/backoff
