@@ -160,7 +160,9 @@
                     <div class="d-flex justify-content-between align-items-start mb-2">
                       <div class="flex-grow-1">
                         <h5 class="card-title mb-1">
-                          {{ r.resource.title }}
+                          <a href="{% url 'resources:resource_detail' r.resource.id %}" class="text-decoration-none">
+                            {{ r.resource.title }}
+                          </a>
                           {% if r.resource.language != 'en' %}
                             {{ r.resource.language|language_badge }}
                           {% endif %}
@@ -168,36 +170,22 @@
 
                         <div class="mb-2 d-flex flex-wrap align-items-center gap-1">
                           {{ r.resource.source|source_badge }}
-                          {{ r.match_reason|match_reason_badge }}
-
-                          {% if r.resource.overall_quality_score %}
-                            {% with percent=r.resource.overall_quality_score|multiply:20 %}
-                              <span class="badge quality-badge
-                                   {% if percent >= 80 %}bg-success text-white
-                                   {% elif percent >= 40 %}bg-warning text-dark
-                                   {% else %}bg-danger text-white
-                                   {% endif %}"
-                                    data-bs-toggle="tooltip"
-                                    title="Quality is an internal 0–5 score (shown as a percentage) based on metadata richness, clarity, and pedagogic suitability.">
-                                Quality: {{ percent|floatformat:0 }}%
-                              </span>
-                            {% endwith %}
-                          {% else %}
-                            <span class="badge bg-secondary"
+                          {% if r.match_reason == 'semantic' %}
+                            <span class="badge bg-primary me-1"
                                   data-bs-toggle="tooltip"
-                                  title="This resource has not yet been assessed by the quality checker.">
-                              Quality: Not rated
+                                  title="Semantic Match means the AI compared the meaning of your query to the resource content, not just matching exact keywords. Higher AI relevance indicates a closer conceptual match.">
+                              Semantic Match
                             </span>
+                          {% else %}
+                            {{ r.match_reason|match_reason_badge }}
                           {% endif %}
 
-                          {% if r.similarity_score %}
-                            {% with conf=r.similarity_score|multiply:100 %}
-                              <span class="badge bg-info text-dark"
-                                    data-bs-toggle="tooltip"
-                                    title="AI confidence is a semantic similarity score between 0 and 1, shown here as a percentage. Higher is better; scores above 60% usually indicate a strong conceptual match.">
-                                AI confidence: {{ conf|floatformat:0 }}%
-                              </span>
-                            {% endwith %}
+                          {% if r.relevance_pct %}
+                            <span class="badge bg-info text-dark"
+                                  data-bs-toggle="tooltip"
+                                  title="AI relevance score (0–100%) indicates how well this resource aligns with your query. Higher is better; scores above 60% usually indicate a strong conceptual match.">
+                              AI relevance: {{ r.relevance_pct }}%
+                            </span>
                           {% endif %}
                         </div>
 
@@ -211,19 +199,7 @@
                           </button>
                           <div class="collapse mt-1" id="why-{{ r.resource.id }}">
                             <small class="text-muted">
-                              Matched via {{ r.match_reason|match_reason_badge }}.
-                              {% if r.similarity_score %}
-                                AI confidence {{ r.similarity_score|multiply:100|floatformat:0 }}%
-                                (semantic similarity between your query and this resource).
-                              {% endif %}
-                              {% if r.resource.overall_quality_score %}
-                                Quality score {{ r.resource.overall_quality_score|floatformat:1 }}
-                                on a 0–5 scale, based on metadata completeness and pedagogic indicators.
-                              {% else %}
-                                This resource has not yet been given a quality score.
-                              {% endif %}
-                              Final ranking score {{ r.final_score|floatformat:2 }}
-                              combines these signals to decide ordering.
+                              This result is ranked using AI-powered semantic similarity between your query and the resource's title and description. Higher AI relevance values (shown above) indicate a closer conceptual match. Resources from curated collections or with richer metadata may be ranked slightly higher. The system prioritizes both semantic alignment and resource quality.
                             </small>
                           </div>
                         </div>

@@ -152,16 +152,13 @@ def link_type_button(resource):
     filenames or bare identifiers are left for internal handling.
     """
     if not resource or not hasattr(resource, "url"):
-        return mark_safe('<span class="text-muted">No link</span>')
+        return mark_safe('<span class="text-muted small">No external link available</span>')
 
     raw_url = resource.url or ""
     if not _looks_like_url(raw_url):
-        # No trustworthy external URL; offer an internal record link instead.
-        title = getattr(resource, "title", "")
+        # No trustworthy external URL; show neutral text
         return mark_safe(
-            f'<a href="/search/?query={title}" '
-            'class="btn btn-sm btn-outline-secondary">'
-            'View record</a>'
+            '<span class="text-muted small">No external link available</span>'
         )
 
     url = raw_url

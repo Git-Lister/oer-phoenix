@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load oer_filters %}
 
-{% block title %}AI Search - OER Platform{% endblock %}
+{% block title %}Find Open Resources - OER Platform{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -114,7 +114,7 @@
         
         <input type="radio" class="btn-check" name="search-mode" id="mode-ask" value="ask">
         <label class="btn btn-outline-primary" for="mode-ask">
-          <i class="bi bi-chat-dots"></i> Ask a Question
+          <i class="bi bi-chat-dots"></i> AI Query
         </label>
       </div>
       <small class="text-muted" id="mode-help">Search for resources using keywords or semantic similarity.</small>
@@ -355,7 +355,7 @@
         <!-- Results Column -->
         <div class="col-md-9">
           <div class="d-flex justify-content-between align-items-center mb-3">
-            <h2 class="mb-0">AI Search Results ({{ detailed_results|length }})</h2>
+            <h2 class="mb-0">Search Results ({{ detailed_results|length }})</h2>
 
             <div class="d-flex gap-2 align-items-center">
               <form method="get"
@@ -417,12 +417,20 @@
 
                         <div class="mb-2 d-flex flex-wrap align-items-center gap-1">
                           {{ r.resource.source|source_badge }}
-                          {{ r.match_reason|match_reason_badge }}
+                          {% if r.match_reason == 'semantic' %}
+                            <span class="badge bg-primary me-1"
+                                  data-bs-toggle="tooltip"
+                                  title="Semantic Match means the AI compared the meaning of your query to the resource content, not just matching exact keywords. Higher AI relevance indicates a closer conceptual match.">
+                              Semantic Match
+                            </span>
+                          {% else %}
+                            {{ r.match_reason|match_reason_badge }}
+                          {% endif %}
 
                           {% if r.relevance_pct %}
                             <span class="badge bg-info text-dark"
                                   data-bs-toggle="tooltip"
-                                  title="AI relevance score (0–100%) based on semantic similarity and resource quality. Higher is better; scores above 60% usually indicate a strong conceptual match.">
+                                  title="AI relevance score (0–100%) indicates how well this resource aligns with your query. Higher is better; scores above 60% usually indicate a strong conceptual match.">
                               AI relevance: {{ r.relevance_pct }}%
                             </span>
                           {% endif %}
@@ -439,11 +447,7 @@
                           </button>
                           <div class="collapse mt-1" id="why-{{ r.resource.id }}">
                             <small class="text-muted">
-                              Matched via {{ r.match_reason|match_reason_badge }}.
-                              {% if r.relevance_pct %}
-                                AI relevance: {{ r.relevance_pct }}%
-                                (indicates how well this resource aligns with your query).
-                              {% endif %}
+                              This result is ranked using AI-powered semantic similarity between your query and the resource's title and description. Higher AI relevance values (shown above) indicate a closer conceptual match. Resources from curated collections or with richer metadata may be ranked slightly higher. The system prioritizes both semantic alignment and resource quality.
                               Final ranking score {{ r.final_score|floatformat:2 }}
                               combines these signals to decide ordering.
                             </small>
