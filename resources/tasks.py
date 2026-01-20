@@ -191,3 +191,68 @@ def talis_push_report(self, push_job_id):
     job.completed_at = timezone.now()
     job.save()
     return job.status
+
+
+# =====================================================================
+# Description Enrichment
+# =====================================================================
+
+@shared_task(bind=True, max_retries=3)
+def enrich_description_from_url(self, resource_id: int):
+    """
+    Fetch a better description from a resource's URL when current description is boilerplate/empty.
+    
+    Strategy:
+    1. Check if resource has a URL
+    2. Check if current description is boilerplate/weak
+    3. Fetch URL and extract metadata (meta description, OG tags, or first paragraph)
+    4. Update resource if better description found
+    5. Track enrichment timestamp
+    
+    Args:
+        resource_id: ID of OERResource to enrich
+    """
+    from resources.utils.description_utils import is_boilerplate_description, extract_description_from_html
+    
+    try:
+        resource = OERResource.objects.get(id=resource_id)
+    except OERResource.DoesNotExist:
+        logger.warning("Resource %s not found for description enrichment", resource_id)
+        return False
+    
+    if not resource.url:
+        logger.debug("Resource %s has no URL, skipping enrichment", resource_id)
+        return False
+    
+    # If description is already meaningful, skip
+    if not is_boilerplate_description(resource.description):
+        logger.debug("Resource %s already has meaningful description, skipping", resource_id)
+        return False
+    
+    # Try to fetch the URL and extract better description
+    try:
+        resp = requests.get(resource.url, timeout=10)
+        if resp.status_code != 200:
+            logger.info("Enrichment for %s failed: HTTP %s", resource_id, resp.status_code)
+            return False
+    except requests.Timeout:
+        logger.info("Enrichment for %s failed: timeout", resource_id)
+        return False
+    except Exception as e:
+        logger.info("Enrichment for %s failed: %s", resource_id, type(e).__name__)
+        return False
+    
+    # Extract description from HTML
+    desc = extract_description_from_html(resp.text)
+    
+    if not desc:
+        logger.debug("Could not extract description for resource %s", resource_id)
+        return False
+    
+    # Update resource and track enrichment
+    resource.description = desc
+    resource.description_last_enriched_at = timezone.now()
+    resource.save(update_fields=["description", "description_last_enriched_at"])
+    
+    logger.info("Enriched description for resource %s (%d chars)", resource_id, len(desc))
+    return True

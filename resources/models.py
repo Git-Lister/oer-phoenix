@@ -302,6 +302,12 @@ class OERResource(models.Model):
         help_text="English translation of description (auto-generated during harvest)"
     )
 
+    # Description enrichment tracking
+    description_last_enriched_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When description was last enriched from resource URL"
+    )
     
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
@@ -382,6 +388,15 @@ class OERResource(models.Model):
     def is_non_english(self):
         """Check if resource is in a language other than English"""
         return self.language and self.language != 'en'
+    
+    def has_meaningful_description(self) -> bool:
+        """
+        Check if resource has a meaningful, non-boilerplate description.
+        
+        Returns False if description is empty, None, too short, or matches known boilerplate.
+        """
+        from resources.utils.description_utils import is_boilerplate_description
+        return not is_boilerplate_description(self.description)
 
 
 class OERSourceFieldMapping(models.Model):
