@@ -404,12 +404,14 @@ def ai_search(request):
     - Hybrid (keyword + semantic) ranking via OERSearchEngine
     - Faceted filters (source, language, resource_type, subject)
     - Sort options (relevance, newest, quality, etc.)
+    - NEW: RAG mode for LLM-synthesized answers (toggle: rag_mode=1 in POST/GET)
     """
     try:
-        # 1. Determine query and sort
+        # 1. Determine query, sort, and mode
         raw_query = request.POST.get("query", request.GET.get("query", ""))
         query = (raw_query or "").strip()
         sort_by = request.GET.get("sort", "relevance")
+        rag_mode = request.POST.get("rag_mode", request.GET.get("rag_mode", "")) == "1"
 
         # 2. Collect applied filters from GET parameters
         applied_filters = {
@@ -432,33 +434,55 @@ def ai_search(request):
 
         detailed_results = []
         facets = {}
+        rag_answer = ""
+        rag_answer_html = ""
+        rag_resources = []
 
         if query:
             from .services.search_engine import OERSearchEngine
+            from .services.rag import answer_with_rag, parse_citations
 
             engine = OERSearchEngine()
 
-            # 3. Hybrid search with optional filters
-            results = engine.hybrid_search(
-                query=query,
-                filters=search_filters or None,
-                limit=50,
-            )
+            # NEW: RAG mode - generate LLM answer instead of traditional search results
+            if rag_mode:
+                rag_result = answer_with_rag(query=query, k=5)
+                rag_answer = rag_result.get("answer", "")
+                rag_answer_html = parse_citations(rag_answer, rag_result.get("resource_ids", []))
+                rag_resources = rag_result.get("resources", [])
+                
+                # For consistency, also retrieve search results to show below
+                results = engine.hybrid_search(
+                    query=query,
+                    filters=search_filters or None,
+                    limit=20,
+                )
+                detailed_results = results
+                
+                logger.info(f"RAG answer generated for query: {query}")
+            else:
+                # Traditional search mode
+                # 3. Hybrid search with optional filters
+                results = engine.hybrid_search(
+                    query=query,
+                    filters=search_filters or None,
+                    limit=50,
+                )
 
-            # 4. Apply chosen sort
-            results = engine.sort_results(results, sort_by=sort_by)
+                # 4. Apply chosen sort
+                results = engine.sort_results(results, sort_by=sort_by)
 
-            # 5. Build facets for sidebar (always pass a dict, no None)
-            facets = engine.get_facets(
-                query=query,
-                applied_filters=search_filters,
-            )
+                # 5. Build facets for sidebar (always pass a dict, no None)
+                facets = engine.get_facets(
+                    query=query,
+                    applied_filters=search_filters,
+                )
 
-            detailed_results = results
+                detailed_results = results
 
             # 6. Store light-weight snapshot for Talis/export use
             last_search_results = []
-            for r in results:
+            for r in detailed_results:
                 resource = getattr(r, "resource", None)
                 source_name = ""
                 if resource and getattr(resource, "source", None):
@@ -483,6 +507,10 @@ def ai_search(request):
             "applied_filters": applied_filters,
             "sort_by": sort_by,
             "ai_search": True,
+            "rag_mode": rag_mode,
+            "rag_answer": rag_answer,
+            "rag_answer_html": rag_answer_html,
+            "rag_resources": rag_resources,
         }
         return render(request, TEMPLATE_SEARCH, context)
 
@@ -785,6 +813,71 @@ def kbart_upload(request):
         logger.exception('Error in kbart_upload: %s', e)
         messages.error(request, f"Error importing KBART: {e}")
         return redirect('resources:kbart_upload')
+
+
+# =====================================================================
+# Resource Detail Pages (NEW)
+# =====================================================================
+
+def resource_shortlink(request, pk):
+    """Short URL redirect to full detail page (e.g., /r/123/ → /resource/123/)"""
+    return redirect("resources:resource_detail", pk=pk, permanent=True)
+
+
+def resource_detail(request, pk):
+    """
+    Per-resource detail page with:
+    - Rich metadata + external links
+    - Optional AI summary (precomputed, no live LLM)
+    - Related resources via vector similarity
+    
+    Performance: 1 DB fetch + 1 vector search, no LLM calls at request time.
+    """
+    try:
+        resource = (
+            OERResource.objects
+            .select_related("source")
+            .get(pk=pk)
+        )
+    except OERResource.DoesNotExist:
+        messages.error(request, "Resource not found.")
+        return redirect("resources:ai_search")
+
+    # Build related items using semantic search on the resource's own content
+    related_results = []
+    try:
+        # Use extracted_text if available, else description, else title
+        base_text = (
+            (resource.extracted_text or "")[:2000]
+            or (resource.description or "")
+            or resource.title
+        )
+
+        if base_text:
+            engine = OERSearchEngine()
+            related_results = engine.semantic_search(
+                query=base_text,
+                limit=6,
+            )
+            # Drop self if present
+            related_results = [
+                r for r in related_results
+                if r.resource.id != resource.id
+            ][:5]  # Keep top 5 related items
+    except Exception as e:
+        logger.warning(f"Error fetching related resources for {pk}: {e}")
+        related_results = []
+
+    # Read precomputed AI summary if it exists (no live LLM call)
+    ai_summary = getattr(resource, "ai_summary", None)
+
+    context = {
+        "resource": resource,
+        "related_results": related_results,
+        "ai_summary": ai_summary,
+    }
+    return render(request, "resources/resource_detail.html", context)
+
 
 def csv_download(request):
     """Download resources as CSV"""
@@ -1387,3 +1480,15 @@ def export_success(request):
 def search_consumer(request):
     """Render a simple frontend that consumes the DRF search API."""
     return render(request, 'resources/search_api_consumer.html')
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff or u.is_superuser)
+def rag_test_view(request):
+    """
+    Internal test interface for the RAG (Retrieval-Augmented Generation) endpoint.
+    
+    Restricted to staff/superusers to prevent abuse during testing phase.
+    Renders a form that POSTs to /api/rag-answer/ and displays the LLM-generated answer.
+    """
+    return render(request, 'rag_test.html')

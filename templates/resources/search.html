@@ -3,35 +3,230 @@
 
 {% block title %}AI Search - OER Platform{% endblock %}
 
+{% block extra_css %}
+<style>
+  /* Phase 2 enhancements: animations and styling */
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  
+  #rag-answer-card {
+    animation: fadeIn 0.6s ease-out;
+  }
+  
+  .citation-link {
+    color: #28a745;
+    font-weight: 600;
+    text-decoration: none;
+    border-bottom: 2px solid rgba(40, 167, 69, 0.3);
+    transition: all 0.2s ease;
+  }
+  
+  .citation-link:hover {
+    border-bottom-color: #28a745;
+    color: #1e7e34;
+  }
+  
+  .card.border-left-success {
+    border-left: 4px solid #28a745 !important;
+  }
+  
+  .suggested-queries {
+    margin-bottom: 2rem;
+  }
+  
+  .suggested-queries .query-tag {
+    display: inline-block;
+    background: #f0f8ff;
+    border: 1px solid #b3d9ff;
+    border-radius: 20px;
+    padding: 0.5rem 1rem;
+    margin-right: 0.5rem;
+    margin-bottom: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.95rem;
+  }
+  
+  .suggested-queries .query-tag:hover {
+    background: #b3d9ff;
+    border-color: #0066cc;
+    transform: translateY(-2px);
+  }
+  
+  .answer-feedback {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e0e0e0;
+  }
+  
+  .feedback-btn {
+    background: none;
+    border: 1px solid #ddd;
+    padding: 0.5rem 1rem;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .feedback-btn:hover {
+    border-color: #999;
+  }
+  
+  .feedback-btn.active {
+    background: #e8f5e9;
+    border-color: #28a745;
+  }
+  
+  .skeleton {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: loading 1.5s infinite;
+  }
+  
+  @keyframes loading {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="row">
   <div class="col-md-12">
     <h1 class="mb-4">Find Open Resources</h1>
 
+    <!-- Mode Toggle: Search vs Ask -->
+    <div class="mb-3 d-flex gap-3 align-items-center">
+      <div class="btn-group" role="group">
+        <input type="radio" class="btn-check" name="search-mode" id="mode-search" value="search" checked>
+        <label class="btn btn-outline-primary" for="mode-search">
+          <i class="bi bi-search"></i> Search Resources
+        </label>
+        
+        <input type="radio" class="btn-check" name="search-mode" id="mode-ask" value="ask">
+        <label class="btn btn-outline-primary" for="mode-ask">
+          <i class="bi bi-chat-dots"></i> Ask a Question
+        </label>
+      </div>
+      <small class="text-muted" id="mode-help">Search for resources using keywords or semantic similarity.</small>
+    </div>
+
     <!-- Search Form -->
     <form method="post" class="mb-4" id="searchForm">
       {% csrf_token %}
+      <input type="hidden" name="rag_mode" id="rag-mode-input" value="">
       <div class="input-group input-group-lg">
         <input type="text"
                name="query"
                class="form-control"
+               id="search-query"
                placeholder="e.g., 'qualitative research methods'"
                value="{{ query }}"
                required>
         <button type="submit" class="btn btn-primary" id="searchBtn">
           <span class="btn-text">
-            <i class="bi bi-search"></i> Search
+            <i class="bi bi-search"></i> <span id="btn-label">Search</span>
           </span>
           <span class="spinner-border spinner-border-sm d-none"
                 role="status"
                 aria-hidden="true"></span>
         </button>
       </div>
-      <small class="text-muted">
+      <small class="text-muted" id="search-hint">
         Try: "introduction to calculus", "biology textbook", "programming for beginners".
       </small>
     </form>
+    {% if rag_answer %}
+      <!-- RAG Answer Display (Ask Mode) -->
+      <div class="card border-success shadow-sm mb-4" id="rag-answer-card">
+        <div class="card-header bg-success text-white">
+          <h5 class="mb-0"><i class="bi bi-lightbulb"></i> AI-Generated Answer</h5>
+        </div>
+        <div class="card-body">
+          <div id="rag-answer-content" class="mb-4" style="line-height: 1.7; font-size: 1.05rem;">
+            {{ rag_answer_html|safe }}
+          </div>
+          
+          {% if rag_resources %}
+            <hr>
+            <h6 class="fw-bold mb-3"><i class="bi bi-link-45deg"></i> Resources Cited in This Answer:</h6>
+            <div class="row">
+              {% for resource in rag_resources %}
+                <div class="col-md-12 mb-2">
+                  <div class="card border-left-success" id="resource-{{ resource.id }}">
+                    <div class="card-body py-2">
+                      <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                          <h6 class="card-title mb-1">
+                            <a href="{% url 'resources:resource_detail' resource.id %}" class="text-decoration-none">
+                              <strong>[R{{ resource.id }}]</strong> {{ resource.title }}
+                            </a>
+                          </h6>
+                          <small class="text-muted">
+                            <strong>Source:</strong> {{ resource.source }}
+                            {% if resource.relevance_pct %}
+                              | <strong>AI relevance:</strong> {{ resource.relevance_pct }}%
+                            {% endif %}
+                          </small>
+                        </div>
+                        <a href="{{ resource.url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-success">
+                          Visit
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          {% endif %}
+          
+          <!-- Feedback Section (Phase 2) -->
+          <div class="answer-feedback">
+            <small class="text-muted">Was this answer helpful?</small>
+            <button class="feedback-btn" data-feedback="helpful" title="This answer was helpful">
+              👍 Helpful
+            </button>
+            <button class="feedback-btn" data-feedback="unhelpful" title="This answer wasn't helpful">
+              👎 Not helpful
+            </button>
+          </div>
+        </div>
+      </div>
+    {% elif query and rag_mode %}
+      <!-- Loading skeleton for RAG answer -->
+      <div class="card border-success shadow-sm mb-4" id="rag-answer-skeleton">
+        <div class="card-header bg-success text-white">
+          <h5 class="mb-0"><i class="bi bi-hourglass-split"></i> Generating Answer...</h5>
+        </div>
+        <div class="card-body">
+          <div class="skeleton" style="height: 100px; border-radius: 4px; margin-bottom: 1rem;"></div>
+          <div class="skeleton" style="height: 60px; border-radius: 4px;"></div>
+        </div>
+      </div>
+    {% endif %}
 
+    <!-- Suggested Queries (Phase 2) - Show when no query yet or in Ask mode -->
+    {% if not query and rag_mode %}
+      <div class="suggested-queries">
+        <h6 class="mb-3 text-muted">Try asking:</h6>
+        <div>
+          <span class="query-tag" data-query="What are the best resources for learning machine learning?">What are the best resources for learning machine learning?</span>
+          <span class="query-tag" data-query="Which resources cover data science for beginners?">Which resources cover data science for beginners?</span>
+          <span class="query-tag" data-query="What open educational materials exist for calculus?">What open educational materials exist for calculus?</span>
+          <span class="query-tag" data-query="How can I find resources on qualitative research methods?">How can I find resources on qualitative research methods?</span>
+          <span class="query-tag" data-query="What are good introductory materials for programming?">What are good introductory materials for programming?</span>
+        </div>
+      </div>
+    {% endif %}
     {% if detailed_results %}
       <!-- About these results -->
       <div class="alert alert-info py-2 small">
@@ -212,7 +407,9 @@
                     <div class="d-flex justify-content-between align-items-start mb-2">
                       <div class="flex-grow-1">
                         <h5 class="card-title mb-1">
-                          {{ r.resource.title }}
+                          <a href="{% url 'resources:resource_detail' r.resource.id %}" class="text-decoration-none">
+                            {{ r.resource.title }}
+                          </a>
                           {% if r.resource.language != 'en' %}
                             {{ r.resource.language|language_badge }}
                           {% endif %}
@@ -222,34 +419,12 @@
                           {{ r.resource.source|source_badge }}
                           {{ r.match_reason|match_reason_badge }}
 
-                          {% if r.resource.overall_quality_score %}
-                            {% with percent=r.resource.overall_quality_score|multiply:20 %}
-                              <span class="badge quality-badge
-                                   {% if percent >= 80 %}bg-success text-white
-                                   {% elif percent >= 40 %}bg-warning text-dark
-                                   {% else %}bg-danger text-white
-                                   {% endif %}"
-                                    data-bs-toggle="tooltip"
-                                    title="Quality is an internal 0–5 score (shown as a percentage) based on metadata richness, clarity, and pedagogic suitability.">
-                                Quality: {{ percent|floatformat:0 }}%
-                              </span>
-                            {% endwith %}
-                          {% else %}
-                            <span class="badge bg-secondary"
+                          {% if r.relevance_pct %}
+                            <span class="badge bg-info text-dark"
                                   data-bs-toggle="tooltip"
-                                  title="This resource has not yet been assessed by the quality checker.">
-                              Quality: Not rated
+                                  title="AI relevance score (0–100%) based on semantic similarity and resource quality. Higher is better; scores above 60% usually indicate a strong conceptual match.">
+                              AI relevance: {{ r.relevance_pct }}%
                             </span>
-                          {% endif %}
-
-                          {% if r.similarity_score %}
-                            {% with conf=r.similarity_score|multiply:100 %}
-                              <span class="badge bg-info text-dark"
-                                    data-bs-toggle="tooltip"
-                                    title="AI confidence is a semantic similarity score between 0 and 1, shown here as a percentage. Higher is better; scores above 60% usually indicate a strong conceptual match.">
-                                AI confidence: {{ conf|floatformat:0 }}%
-                              </span>
-                            {% endwith %}
                           {% endif %}
                         </div>
 
@@ -265,15 +440,9 @@
                           <div class="collapse mt-1" id="why-{{ r.resource.id }}">
                             <small class="text-muted">
                               Matched via {{ r.match_reason|match_reason_badge }}.
-                              {% if r.similarity_score %}
-                                AI confidence {{ r.similarity_score|multiply:100|floatformat:0 }}%
-                                (semantic similarity between your query and this resource).
-                              {% endif %}
-                              {% if r.resource.overall_quality_score %}
-                                Quality score {{ r.resource.overall_quality_score|floatformat:1 }}
-                                on a 0–5 scale, based on metadata completeness and pedagogic indicators.
-                              {% else %}
-                                This resource has not yet been given a quality score.
+                              {% if r.relevance_pct %}
+                                AI relevance: {{ r.relevance_pct }}%
+                                (indicates how well this resource aligns with your query).
                               {% endif %}
                               Final ranking score {{ r.final_score|floatformat:2 }}
                               combines these signals to decide ordering.
@@ -380,6 +549,112 @@ document.addEventListener('DOMContentLoaded', function () {
       spinner.classList.remove('d-none');
     }
     btn.disabled = true;
+  });
+});
+
+// Mode toggle: Search vs Ask
+document.addEventListener('DOMContentLoaded', function () {
+  const modeSearch = document.getElementById('mode-search');
+  const modeAsk = document.getElementById('mode-ask');
+  const ragModeInput = document.getElementById('rag-mode-input');
+  const btnLabel = document.getElementById('btn-label');
+  const modeHelp = document.getElementById('mode-help');
+  const searchHint = document.getElementById('search-hint');
+  const searchQuery = document.getElementById('search-query');
+
+  function updateModeUI() {
+    if (modeAsk.checked) {
+      ragModeInput.value = '1';
+      btnLabel.textContent = 'Ask';
+      modeHelp.textContent = 'Ask a question about OER resources. An AI assistant will synthesize relevant resources into a thoughtful answer.';
+      searchHint.textContent = 'Try: "What resources teach machine learning to beginners?" or "How do I find materials on data science?"';
+      searchQuery.placeholder = 'e.g., "What resources cover calculus for beginners?"';
+    } else {
+      ragModeInput.value = '';
+      btnLabel.textContent = 'Search';
+      modeHelp.textContent = 'Search for resources using keywords or semantic similarity.';
+      searchHint.textContent = 'Try: "introduction to calculus", "biology textbook", "programming for beginners".';
+      searchQuery.placeholder = 'e.g., "qualitative research methods"';
+    }
+  }
+
+  if (modeSearch && modeAsk) {
+    modeSearch.addEventListener('change', updateModeUI);
+    modeAsk.addEventListener('change', updateModeUI);
+  }
+});
+
+// Phase 2: Suggested queries - click to fill and submit
+document.addEventListener('DOMContentLoaded', function () {
+  const queryTags = document.querySelectorAll('.query-tag');
+  const searchQuery = document.getElementById('search-query');
+  const searchForm = document.getElementById('searchForm');
+
+  queryTags.forEach(tag => {
+    tag.addEventListener('click', function () {
+      const query = this.getAttribute('data-query');
+      searchQuery.value = query;
+      searchForm.submit();
+    });
+  });
+});
+
+// Phase 2: Feedback buttons - track helpful/unhelpful
+document.addEventListener('DOMContentLoaded', function () {
+  const feedbackBtns = document.querySelectorAll('.feedback-btn');
+
+  feedbackBtns.forEach(btn => {
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      const feedback = this.getAttribute('data-feedback');
+      const query = document.getElementById('search-query').value;
+
+      // Remove active state from all buttons
+      feedbackBtns.forEach(b => b.classList.remove('active'));
+      
+      // Mark this button as active
+      this.classList.add('active');
+
+      // Log feedback (in a real app, send to backend)
+      console.log(`Feedback: ${feedback} for query: "${query}"`);
+      
+      // Optional: Store in session/localStorage for later analysis
+      const feedbackLog = JSON.parse(localStorage.getItem('rag_feedback_log') || '[]');
+      feedbackLog.push({
+        query: query,
+        feedback: feedback,
+        timestamp: new Date().toISOString()
+      });
+      localStorage.setItem('rag_feedback_log', JSON.stringify(feedbackLog));
+
+      // Show brief confirmation
+      const originalText = this.textContent;
+      this.textContent = feedback === 'helpful' ? '✓ Thanks!' : '✓ Noted';
+      setTimeout(() => {
+        this.textContent = originalText;
+      }, 2000);
+    });
+  });
+});
+
+// Citation links: smooth scroll to resource
+document.addEventListener('DOMContentLoaded', function () {
+  const citationLinks = document.querySelectorAll('.citation-link');
+
+  citationLinks.forEach(link => {
+    link.addEventListener('click', function (e) {
+      e.preventDefault();
+      const href = this.getAttribute('href');
+      const target = document.querySelector(href);
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // Highlight the resource briefly
+        target.style.backgroundColor = '#fff3cd';
+        setTimeout(() => {
+          target.style.backgroundColor = '';
+        }, 2000);
+      }
+    });
   });
 });
 </script>

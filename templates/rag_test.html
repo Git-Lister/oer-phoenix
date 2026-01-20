@@ -1,0 +1,223 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}RAG Answer Test{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <h1>RAG Answer Test Interface</h1>
+            <p class="text-muted lead">
+                Test the Retrieval-Augmented Generation (RAG) endpoint by asking a question 
+                about the OER collection. The system will retrieve relevant resources and 
+                generate an LLM-based answer with citations.
+            </p>
+
+            <hr class="my-4">
+
+            <!-- Input Form -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Ask a Question</h5>
+                </div>
+                <div class="card-body">
+                    <form id="rag-form">
+                        <div class="form-group mb-3">
+                            <label for="rag-query" class="form-label">Question:</label>
+                            <textarea 
+                                id="rag-query" 
+                                name="query" 
+                                rows="4" 
+                                class="form-control" 
+                                placeholder="E.g., What resources are available on machine learning for beginners?"
+                                autofocus></textarea>
+                            <small class="form-text text-muted">
+                                Your question will be matched against the resource collection using semantic search.
+                            </small>
+                        </div>
+
+                        <div class="form-group mb-3">
+                            <label for="rag-k" class="form-label">Number of Resources (k):</label>
+                            <input 
+                                type="number" 
+                                id="rag-k" 
+                                name="k" 
+                                value="5" 
+                                min="1" 
+                                max="20"
+                                class="form-control"
+                                style="max-width: 120px;">
+                            <small class="form-text text-muted">
+                                Maximum number of resources to retrieve (1-20).
+                            </small>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary btn-lg">Ask Question</button>
+                        <button type="reset" class="btn btn-secondary btn-lg ms-2">Clear</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Loading indicator -->
+            <div id="rag-loading" class="alert alert-info d-none" role="alert">
+                <div class="spinner-border spinner-border-sm me-2" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <strong>Generating answer...</strong> This may take a few seconds.
+            </div>
+
+            <!-- Error display -->
+            <div id="rag-error" class="alert alert-danger d-none" role="alert"></div>
+
+            <!-- Response display -->
+            <div id="rag-response-container" class="d-none">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">Generated Answer</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="rag-answer-text" class="mb-4" style="line-height: 1.8;"></div>
+
+                        <hr>
+
+                        <h6 class="fw-bold mb-3">Cited Resources:</h6>
+                        <div id="rag-resources-list"></div>
+                    </div>
+                </div>
+
+                <!-- Raw response for debugging -->
+                <details class="mt-3">
+                    <summary class="text-muted cursor-pointer">Show Raw JSON Response</summary>
+                    <pre id="rag-raw-json" class="bg-light p-3 rounded mt-2" style="font-size: 0.85rem;"></pre>
+                </details>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('rag-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const query = document.getElementById('rag-query').value.trim();
+    const k = parseInt(document.getElementById('rag-k').value, 10) || 5;
+    
+    if (!query) {
+        document.getElementById('rag-error').textContent = 'Please enter a question.';
+        document.getElementById('rag-error').classList.remove('d-none');
+        document.getElementById('rag-response-container').classList.add('d-none');
+        return;
+    }
+    
+    // Clear previous state
+    document.getElementById('rag-error').classList.add('d-none');
+    document.getElementById('rag-response-container').classList.add('d-none');
+    document.getElementById('rag-loading').classList.remove('d-none');
+    
+    try {
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
+                         document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1] || '';
+        
+        const res = await fetch('/api/rag-answer/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken,
+            },
+            body: JSON.stringify({ query, k }),
+        });
+        
+        document.getElementById('rag-loading').classList.add('d-none');
+        
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(`HTTP ${res.status}: ${errorData.error || 'Unknown error'}`);
+        }
+        
+        const data = await res.json();
+        displayResponse(data);
+        
+    } catch (err) {
+        document.getElementById('rag-loading').classList.add('d-none');
+        document.getElementById('rag-error').textContent = `Error: ${err.message}`;
+        document.getElementById('rag-error').classList.remove('d-none');
+    }
+});
+
+function displayResponse(data) {
+    // Display the answer
+    const answerHtml = marked(data.answer || '(No answer generated)');
+    document.getElementById('rag-answer-text').innerHTML = answerHtml;
+    
+    // Display resources
+    const resourcesList = document.getElementById('rag-resources-list');
+    resourcesList.innerHTML = '';
+    
+    if (data.resources && data.resources.length > 0) {
+        data.resources.forEach((resource, idx) => {
+            const resourceCard = document.createElement('div');
+            resourceCard.className = 'card card-sm mb-2';
+            resourceCard.innerHTML = `
+                <div class="card-body py-2">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h6 class="card-title mb-1">
+                                <strong>[R${resource.id}]</strong> ${escapeHtml(resource.title)}
+                            </h6>
+                            <small class="text-muted">
+                                <strong>Source:</strong> ${escapeHtml(resource.source || 'Unknown')}
+                                ${resource.similarity_score ? `<br><strong>Similarity:</strong> ${(resource.similarity_score * 100).toFixed(1)}%` : ''}
+                            </small>
+                        </div>
+                        <a href="${resource.url}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary">
+                            View
+                        </a>
+                    </div>
+                </div>
+            `;
+            resourcesList.appendChild(resourceCard);
+        });
+    } else {
+        const noResourcesMsg = document.createElement('p');
+        noResourcesMsg.className = 'text-muted';
+        noResourcesMsg.textContent = 'No resources were used to generate this answer.';
+        resourcesList.appendChild(noResourcesMsg);
+    }
+    
+    // Display raw JSON for debugging
+    document.getElementById('rag-raw-json').textContent = JSON.stringify(data, null, 2);
+    
+    // Show the response container
+    document.getElementById('rag-response-container').classList.remove('d-none');
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Optional: Include marked.js for markdown rendering (fallback to plain text if not available)
+if (typeof marked === 'undefined') {
+    window.marked = function(text) {
+        return `<p>${escapeHtml(text)}</p>`;
+    };
+}
+</script>
+
+<style>
+    .card-sm {
+        border: 1px solid #dee2e6;
+    }
+    
+    .cursor-pointer {
+        cursor: pointer;
+    }
+    
+    details summary:hover {
+        text-decoration: underline;
+    }
+</style>
+
+{% endblock %}

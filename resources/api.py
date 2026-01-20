@@ -1,9 +1,13 @@
 from rest_framework.views import APIView
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework import status, serializers
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.utils.html import strip_tags
+from django.conf import settings
 
 from .services.search_engine import OERSearchEngine
+from .services.rag import answer_with_rag, parse_citations
 
 
 class SearchResultSerializer(serializers.Serializer):
@@ -58,3 +62,68 @@ class SearchAPIView(APIView):
 
         serializer = SearchResultSerializer(payload, many=True)
         return Response({'results': serializer.data}, status=status.HTTP_200_OK)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])  # Allow anonymous users to ask questions; RAG is public-facing
+def rag_answer_view(request):
+    """
+    RAG endpoint: POST {"query": "..."} to get LLM-synthesized answer with resource citations.
+    
+    Allows both authenticated and anonymous users (public-facing endpoint).
+    
+    Request body:
+        {
+            "query": "string - the user's question",
+            "k": "int - optional, max resources to retrieve (default: 5)"
+        }
+    
+    Response:
+        {
+            "answer": "string - the LLM-generated answer",
+            "resource_ids": [1, 2, 3],
+            "resources": [
+                {
+                    "id": 1,
+                    "title": "...",
+                    "url": "...",
+                    "source": "...",
+                    "similarity_score": 0.85
+                },
+                ...
+            ]
+        }
+    """
+    query = request.data.get('query', '').strip()
+    k = request.data.get('k', 5)
+    
+    if not query:
+        return Response(
+            {'error': 'Missing or empty "query" field'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    
+    try:
+        k = int(k)
+        if k < 1 or k > 20:
+            k = 5
+    except (ValueError, TypeError):
+        k = 5
+    
+    try:
+        result = answer_with_rag(query=query, k=k)
+        
+        # Parse citations in the answer text for client-side rendering
+        result['answer_html'] = parse_citations(
+            result['answer'],
+            result['resource_ids']
+        )
+        
+        return Response(result, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response(
+            {
+                'error': 'RAG answer generation failed',
+                'detail': str(e),
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )

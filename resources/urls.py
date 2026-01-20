@@ -21,6 +21,10 @@ urlpatterns = [
     path('compare/', views.compare_view, name='compare_resources'),
     path("advanced-search/", views.advanced_search, name="advanced_search"),
 
+    # Resource detail pages
+    path('resource/<int:pk>/', views.resource_detail, name='resource_detail'),
+    path('r/<int:pk>/', views.resource_shortlink, name='resource_shortlink'),
+
     # CSV operations - mixed templates
     path('download-csv/', views.csv_download, name='csv_download'),
     path('upload-csv/', views.csv_upload, name='csv_upload'),  # Admin template
@@ -51,9 +55,13 @@ urlpatterns = [
 
     # API endpoints
     path('api/search/', api.SearchAPIView.as_view(), name='api_search'),
+    path('api/rag-answer/', api.rag_answer_view, name='api_rag_answer'),
 
     # Simple frontend consumer for the API
     path('search/consumer/', views.search_consumer, name='search_consumer'),
+
+    # RAG (Retrieval-Augmented Generation) test interface
+    path('rag-test/', views.rag_test_view, name='rag_test'),
 
     # Existing Talis CSV processing (batch AI search)
     path('talis/upload/', views.bulk_csv_upload, name='talis_csv_upload'),

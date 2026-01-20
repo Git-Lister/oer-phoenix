@@ -19,11 +19,22 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class SearchResult:
-    """Structured search result with scoring."""
+    """Structured search result with scoring.
+    
+    Fields:
+    - resource: OERResource ORM instance
+    - similarity_score: Raw similarity (0.0 - 1.0)
+    - quality_score: Internal quality metric (0.0 - 1.0, from 0-5 scale)
+    - final_score: Combined score for ranking (similarity + quality boost)
+    - relevance_pct: Normalized user-facing score (0-100%, derived from similarity)
+    - match_reason: "semantic", "keyword", or "hybrid"
+    """
     resource: OERResource
     similarity_score: float = 0.0
+    quality_score: float = 0.0
     quality_boost: float = 0.0
     final_score: float = 0.0
+    relevance_pct: int = 0  # 0-100, rounded; THIS is the user-facing score
     match_reason: str = ""
 
 
@@ -104,16 +115,24 @@ class OERSearchEngine:
                     logger.warning("Cosine similarity error for resource %s: %s", getattr(res, "id", "?"), e)
                     sim = 0.0
 
-                quality_score = self._get_resource_quality_score(res)
-                quality_boost = (quality_score / 5.0) * self.quality_weight
+                # Quality score (0-1, derived from internal 0-5 metric)
+                quality_score = self._get_resource_quality_score(res) / 5.0
+                quality_boost = quality_score * self.quality_weight
+                
+                # Final ranking score: similarity + quality boost
                 final = sim + quality_boost
+                
+                # Normalized relevance percentage (0-100) for user display
+                relevance_pct = int(round(sim * 100))
 
                 results.append(
                     SearchResult(
                         resource=res,
                         similarity_score=sim,
+                        quality_score=quality_score,
                         quality_boost=quality_boost,
                         final_score=final,
+                        relevance_pct=relevance_pct,
                         match_reason="semantic",
                     )
                 )
@@ -159,16 +178,22 @@ class OERSearchEngine:
             desc_hits = sum(1 for kw in keywords if kw in desc_text)
             score = (title_hits * 0.6 + desc_hits * 0.4) / max(1, len(keywords))
 
-            quality_score = self._get_resource_quality_score(res)
-            quality_boost = (quality_score / 5.0) * self.quality_weight
+            # Quality score (0-1, derived from internal 0-5 metric)
+            quality_score = self._get_resource_quality_score(res) / 5.0
+            quality_boost = quality_score * self.quality_weight
             final = score * self.keyword_weight + quality_boost
+            
+            # Normalized relevance percentage (0-100) for user display
+            relevance_pct = int(round(score * 100))
 
             results.append(
                 SearchResult(
                     resource=res,
                     similarity_score=score,
+                    quality_score=quality_score,
                     quality_boost=quality_boost,
                     final_score=final,
+                    relevance_pct=relevance_pct,
                     match_reason="keyword",
                 )
             )
