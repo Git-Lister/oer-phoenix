@@ -13,7 +13,7 @@
 
 <div class="row mb-4">
   <!-- AI OER Search -->
-  <div class="col-md-8 mb-3">
+  <div class="col-md-6 mb-3">
     <div class="card border-primary shadow-sm">
       <div class="card-header bg-primary bg-opacity-10">
         <h2 class="h5 mb-0">🔍 Find Open Resources</h2>
@@ -39,8 +39,37 @@
     </div>
   </div>
 
+  <!-- AI Query Box -->
+  <div class="col-md-6 mb-3">
+    <div class="card border-success shadow-sm">
+      <div class="card-header bg-success bg-opacity-10">
+        <h2 class="h5 mb-0">💡 Query AI</h2>
+      </div>
+      <div class="card-body">
+        <form id="dashboard-ai-query-form">
+          <div class="input-group input-group-lg mb-2">
+            <input
+              type="text"
+              class="form-control"
+              id="dashboard-ai-query-input"
+              placeholder="Ask a question about open resources"
+              required
+            >
+            <button class="btn btn-success" type="submit">Ask</button>
+          </div>
+          <small class="form-text text-muted d-block">
+            Get answers from our AI-powered OER database.
+          </small>
+        </form>
+        <div id="dashboard-ai-answer" class="mt-3" style="display:none;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row mb-4">
   <!-- Talis Reading List Analysis -->
-  <div class="col-md-4 mb-3">
+  <div class="col-md-6 mb-3">
     <div class="card shadow-sm">
       <div class="card-header">
         <h2 class="h5 mb-0">📚 Analyze Talis Reading List</h2>
@@ -92,6 +121,9 @@
       </div>
     </div>
   </div>
+
+  <!-- Placeholder for balance -->
+  <div class="col-md-6 mb-3"></div>
 </div>
 
 <!-- Quick stats row -->
@@ -348,5 +380,61 @@ if (ctx) {
   });
 }
 {% endif %}
+</script>
+
+<script>
+// Dashboard AI Query functionality - reuses /api/rag-answer endpoint
+document.getElementById('dashboard-ai-query-form').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  
+  const query = document.getElementById('dashboard-ai-query-input').value;
+  const answerDiv = document.getElementById('dashboard-ai-answer');
+  
+  if (!query.trim()) return;
+  
+  // Show loading state
+  answerDiv.innerHTML = '<div class="text-center"><span class="spinner-border spinner-border-sm me-2"></span>Querying AI...</div>';
+  answerDiv.style.display = 'block';
+  
+  try {
+    const response = await fetch('{% url "resources:api_rag_answer" %}', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || ''
+      },
+      body: JSON.stringify({
+        query: query,
+        k: 5
+      })
+    });
+    
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    
+    const data = await response.json();
+    
+    // Render answer card
+    let html = `<div class="card border-left-success" style="border-left: 4px solid #28a745;">`;
+    html += `<div class="card-body">`;
+    html += `<p class="card-text">${data.answer_html || data.answer}</p>`;
+    
+    // Render citations if available
+    if (data.cited_resources && data.cited_resources.length > 0) {
+      html += `<hr><small class="text-muted"><strong>Related Resources:</strong></small><br>`;
+      data.cited_resources.forEach(resource => {
+        html += `<a href="${resource.url || '#'}" class="citation-link d-inline-block me-2" style="color: #28a745; text-decoration: none; border-bottom: 2px solid rgba(40, 167, 69, 0.3);">` +
+                `${resource.title || 'Resource'}</a>`;
+      });
+    }
+    
+    html += `</div></div>`;
+    answerDiv.innerHTML = html;
+    
+  } catch (error) {
+    console.error('AI Query error:', error);
+    answerDiv.innerHTML = `<div class="alert alert-danger" role="alert">` +
+      `<strong>Error:</strong> ${error.message || 'Failed to get AI response. Please try again.'}</div>`;
+  }
+});
 </script>
 {% endblock %}

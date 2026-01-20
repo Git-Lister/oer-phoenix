@@ -314,7 +314,7 @@ print(f"description_last_enriched_at: {r.description_last_enriched_at}")
 
 ```bash
 # Watch Celery logs for task execution
-docker compose logs -f celery | grep "Enriched description"
+docker compose logs -f celery | findstir "Enriched description"
 ```
 
 Expected output (after ~10 seconds):
@@ -346,7 +346,7 @@ docker compose exec web python manage.py backfill_descriptions_from_url --dry-ru
 docker compose exec web python manage.py backfill_descriptions_from_url --source-id 5 --limit 10
 
 # Monitor progress
-docker compose logs -f celery | grep "Enriched description"
+docker compose logs -f celery | findstr "Enriched description"
 ```
 
 ---
@@ -438,7 +438,7 @@ docker compose logs -f celery | grep "Enriched description"
 
 ```bash
 # Verify Celery is running
-docker compose ps | grep celery
+docker compose ps | findstir celery
 
 # Restart Celery
 docker compose restart celery

@@ -243,64 +243,63 @@
             <div class="card-header bg-light">
               <h5 class="mb-0">Filter Results</h5>
             </div>
-            <div class="card-body">
+            <div class="card-body" style="max-height: 70vh; overflow-y: auto;">
               <form method="get" action="{% url 'resources:ai_search' %}" id="filter-form">
                 <input type="hidden" name="query" value="{{ query }}">
 
-                <!-- Source Filter -->
+                <!-- Date Range Filter -->
+                <div class="mb-3">
+                  <h6 class="mb-2">Date First Published</h6>
+                  <div class="mb-2">
+                    <label class="form-label small">From</label>
+                    <input type="date" class="form-control form-control-sm" name="published_from"
+                           value="{{ request.GET.published_from }}">
+                  </div>
+                  <div class="mb-2">
+                    <label class="form-label small">To</label>
+                    <input type="date" class="form-control form-control-sm" name="published_to"
+                           value="{{ request.GET.published_to }}">
+                  </div>
+                </div>
+
+                <!-- Source Filter (Dropdown) -->
                 {% if facets.sources %}
                   <div class="mb-3">
-                    <h6 class="mb-2">Collection</h6>
-                    {% for s in facets.sources %}
-                      <div class="form-check">
-                        <input class="form-check-input"
-                               type="checkbox"
-                               name="source"
-                               value="{{ s.source__id }}"
-                               id="source_{{ s.source__id }}"
-                               {% if s.source__id|stringformat:"s" in applied_filters.sources %}checked{% endif %}>
-                        <label class="form-check-label small" for="source_{{ s.source__id }}">
+                    <label class="form-label"><h6 class="mb-2">Collection</h6></label>
+                    <select class="form-select form-select-sm" name="source" multiple>
+                      <option value="">All collections</option>
+                      {% for s in facets.sources %}
+                        <option value="{{ s.source__id }}" 
+                                {% if s.source__id|stringformat:"s" in applied_filters.sources %}selected{% endif %}>
                           {{ s.source__display_name|default:s.source__name }} ({{ s.count }})
-                        </label>
-                      </div>
-                    {% endfor %}
+                        </option>
+                      {% endfor %}
+                    </select>
                   </div>
                 {% endif %}
 
-                <!-- Language Filter -->
+                <!-- Language Filter (Dropdown) -->
                 {% if facets.languages %}
                   <div class="mb-3">
-                    <h6 class="mb-2">Language</h6>
-                    <div class="form-check">
-                      <input class="form-check-input"
-                             type="checkbox"
-                             name="language"
-                             value="en"
-                             id="lang_en"
-                             {% if 'en' in applied_filters.languages %}checked{% endif %}>
-                      <label class="form-check-label small" for="lang_en">
-                        English only
-                      </label>
-                    </div>
-                    {% for l in facets.languages %}
-                      {% if l.language != 'en' %}
-                        <div class="form-check">
-                          <input class="form-check-input"
-                                 type="checkbox"
-                                 name="language"
-                                 value="{{ l.language }}"
-                                 id="lang_{{ l.language }}"
-                                 {% if l.language in applied_filters.languages %}checked{% endif %}>
-                          <label class="form-check-label small" for="lang_{{ l.language }}">
+                    <label class="form-label"><h6 class="mb-2">Language</h6></label>
+                    <select class="form-select form-select-sm" name="language" multiple>
+                      <option value="">All languages</option>
+                      <option value="en" {% if 'en' in applied_filters.languages %}selected{% endif %}>
+                        English
+                      </option>
+                      {% for l in facets.languages %}
+                        {% if l.language != 'en' %}
+                          <option value="{{ l.language }}"
+                                  {% if l.language in applied_filters.languages %}selected{% endif %}>
                             {{ l.language|upper }} ({{ l.count }})
-                          </label>
-                        </div>
-                      {% endif %}
-                    {% endfor %}
+                          </option>
+                        {% endif %}
+                      {% endfor %}
+                    </select>
                   </div>
                 {% endif %}
 
-                <!-- Resource Type Filter -->
+                <!-- Resource Type Filter (Checkboxes) -->
                 {% if facets.resource_types %}
                   <div class="mb-3">
                     <h6 class="mb-2">Resource Type</h6>
@@ -320,25 +319,50 @@
                   </div>
                 {% endif %}
 
-                <!-- Subject Filter (Top 10) -->
+                <!-- Subject Filter (Checkboxes) -->
                 {% if facets.subjects %}
                   <div class="mb-3">
                     <h6 class="mb-2">Subject Area</h6>
                     {% for subj in facets.subjects %}
-                    <div class="form-check">
-                      <input class="form-check-input"
-                            type="checkbox"
-                            name="subject"
-                            value="{{ subj.primary_subject }}"
-                            id="subj_{{ forloop.counter }}"
-                            {% if subj.primary_subject in applied_filters.subjects %}checked{% endif %}>
-                      <label class="form-check-label small" for="subj_{{ forloop.counter }}">
-                        {{ subj.primary_subject }} ({{ subj.count }})
-                      </label>
-                    </div>
-                  {% endfor %}
+                      <div class="form-check">
+                        <input class="form-check-input"
+                              type="checkbox"
+                              name="subject"
+                              value="{{ subj.primary_subject }}"
+                              id="subj_{{ forloop.counter }}"
+                              {% if subj.primary_subject in applied_filters.subjects %}checked{% endif %}>
+                        <label class="form-check-label small" for="subj_{{ forloop.counter }}">
+                          {{ subj.primary_subject }} ({{ subj.count }})
+                        </label>
+                      </div>
+                    {% endfor %}
                   </div>
                 {% endif %}
+
+                <!-- License Filter -->
+                <div class="mb-3">
+                  <h6 class="mb-2">License</h6>
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="license" 
+                           value="CC" id="license_cc"
+                           {% if 'CC' in applied_filters.licenses %}checked{% endif %}>
+                    <label class="form-check-label small" for="license_cc">
+                      Creative Commons only
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Full Text Filter -->
+                <div class="mb-3">
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="has_fulltext"
+                           value="yes" id="has_fulltext"
+                           {% if 'yes' in applied_filters.has_fulltext %}checked{% endif %}>
+                    <label class="form-check-label small" for="has_fulltext">
+                      Has full text available
+                    </label>
+                  </div>
+                </div>
 
                 <button type="submit" class="btn btn-primary btn-sm w-100 mb-2">
                   Apply Filters

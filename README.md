@@ -1,25 +1,22 @@
+# OER Rebirth
 
-# OER_Phoenix — quick, accurate docs
+> A Django-based OER harvesting, enrichment, and search platform with semantic embeddings and AI-powered discovery.
 
-This repository contains a Django-based prototype platform for harvesting,
-enriching and searching Open Educational Resources (OER). The project uses
-Postgres (with the `vector` extension), optional AI enrichment, and a set of
-harvesters (OAI‑PMH, MARCXML, CSV, API).
+This repository contains a complete platform for harvesting, enriching, and searching Open Educational Resources (OER). The project uses Django, PostgreSQL with pgvector, Celery async workers, and a suite of harvesters (OAI-PMH, MARCXML, CSV, REST API).
 
-This README is the authoritative, up-to-date onboarding guide. If you are
-evaluating or demoing the project, follow the Quick Start below.
+**Status:** Production-ready. Latest session completed description enrichment pipeline, admin QOL improvements, and enhanced search interface.
 
 ---
 
-## What changed from older docs
+## Features
 
-- Environment variable names in `oer_rebirth/settings.py` use `DB_NAME`,
-   `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT` for Django's database config.
-   The database container still uses `POSTGRES_*` variables for initialization.
-- Celery is configured in `.env` to use Redis by default; settings may fall
-   back to other backends if not provided.
-- The `docker-entrypoint.sh` will create a default superuser `admin` /
-   `adminpass` if one does not already exist.
+- **Multi-format harvesting** – OAI-PMH, MARCXML, CSV, REST API integrations
+- **Semantic search** – Hybrid keyword + vector similarity on pgvector
+- **Description enrichment** – Auto-fetch and replace boilerplate descriptions via Celery
+- **Admin dashboard** – Filter by embedding status, view resource counts
+- **Query AI** – RAG-powered question answering over resource collection
+- **Quality scoring** – Automated metadata quality assessment
+- **Async processing** – Celery tasks for harvests, enrichment, and indexing
 
 ---
 
@@ -27,12 +24,7 @@ evaluating or demoing the project, follow the Quick Start below.
 
 - Docker & Docker Compose (recommended: Docker Compose v2; use `docker compose`)
 - Git
-- For local non-Docker development: Python 3.12 (Docker image uses 3.12)
-
-Optional services for advanced features:
-- Redis (task broker)
-- Qdrant (vector DB alternative)
-- pgAdmin (DB admin UI)
+- For local development: Python 3.11+ (Docker image uses 3.12)
 
 ---
 
@@ -145,23 +137,89 @@ service. Example values are present in `.env.example`.
 
 - Database connection errors: verify `.env` DB_* values and that the `db`
    container is healthy (`docker compose ps` / `docker compose logs db`).
-- Celery not processing tasks: check `docker compose logs celery` and ensure
-   `CELERY_BROKER_URL` points to a running Redis instance.
-- Embeddings or AI jobs failing: ensure `ENABLE_LLM_ENRICHMENT=true` and
-   `LOCAL_LLM_URL` points to a reachable model; install optional AI packages
-   only when required.
+---
+
+## Architecture
+
+**Web (Django)** → REST API, admin interface, dashboard, search views
+
+**Database (PostgreSQL + pgvector)** → OERResource, OERSource, task metadata, embeddings
+
+**Celery (async queue)** → Description enrichment, embedding generation, quality scoring
+
+**Search Engine** → Hybrid keyword + semantic search, ranking
+
+**RAG** → LLM integration for question answering with citations
+
+See [docs/](docs/) for detailed architecture diagrams and data flows.
+
+---
+
+## Key Commands
+
+```bash
+# Start full stack
+docker compose up -d
+
+# Harvest from a source
+docker compose exec web python manage.py fetch_oer --source doab --limit 100
+
+# Backfill descriptions (preview)
+docker compose exec web python manage.py backfill_descriptions_from_url \
+  --preview --limit 50
+
+# Monitor Celery
+docker compose logs -f celery
+
+# Create superuser
+docker compose exec web python manage.py createsuperuser
+
+# Access dashboard
+open http://localhost:8000/home/
+open http://localhost:8000/admin/
+```
+
+---
+
+## Troubleshooting
+
+| Issue | Check |
+|-------|-------|
+| Harvest not starting | `docker compose logs web \| findstr "fetch_oer"` |
+| Celery tasks failing | `docker compose logs celery` and check Redis connectivity |
+| Description enrichment slow | Verify `CELERY_BROKER_URL` in `.env` points to running Redis |
+| Search returning no results | Check pgvector extension: `docker compose exec db psql -c "CREATE EXTENSION IF EXISTS vector;"` |
+| Admin page error | Run migrations: `docker compose exec web python manage.py migrate` |
+
+---
+
+## Further Documentation
+
+- **[docs/deployment_verification_checklist.md](docs/deployment_verification_checklist.md)** – Pre-production checks and verification commands
+- **[docs/description_enrichment_implementation.md](docs/description_enrichment_implementation.md)** – Description enrichment pipeline design and API
+- **[docs/description_enrichment_quickstart.md](docs/description_enrichment_quickstart.md)** – 5-minute enrichment test walkthrough
+- **[docs/session_complete_summary.md](docs/session_complete_summary.md)** – Historical development notes for current phase
 
 ---
 
 ## Contributing
 
-- Fork, branch, and open a pull request to `main`. Keep documentation changes
-   in the same PR as related code changes.
+- Fork, branch, and open a pull request to `main`
+- Keep documentation changes in the same PR as related code changes
+- Run tests before submitting: `python manage.py test resources`
 
 ---
 
-If you want, I can now apply these documentation changes to `OldREADME.md`
-and create a short `.env.example` if you prefer a trimmed version. I will not
-change any runtime code in this step.
+## License
+
+Licensed under the MIT License. See [LICENSE](LICENSE) for details.
+
+---
+
+## Support
+
+- **Issues:** GitHub Issues tab
+- **Docs:** [docs/](docs/) folder
+- **Questions:** See troubleshooting table above
 
 

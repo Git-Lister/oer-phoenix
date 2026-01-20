@@ -14,6 +14,7 @@ from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 from django.http import HttpResponseRedirect, JsonResponse
 from django import forms
+from django.db.models import Count, Q, F
 
 from resources.models import OERSource, HarvestJob, OERSourceFieldMapping, OERResource
 from resources.models import TalisPushJob
@@ -146,6 +147,36 @@ def run_quality_assessment_all_action(modeladmin, request, queryset):
         )
 
 # ---------------------------------------------------------------------------- #
+#                               Custom Filters                                  #
+# ---------------------------------------------------------------------------- #
+
+class HasEmbeddingsFilter(admin.SimpleListFilter):
+    """Filter OERSources by embedding completeness"""
+    title = "resource embeddings"
+    parameter_name = "has_embeddings"
+
+    def lookups(self, request, model_admin):
+        return [
+            ("yes", "All resources have embeddings"),
+            ("no", "Some resources missing embeddings"),
+        ]
+
+    def queryset(self, request, queryset):
+        if self.value() is None:
+            return queryset
+
+        qs = queryset.annotate(
+            total_resources=Count("oerresource"),
+            with_embeddings=Count("oerresource", filter=Q(oerresource__content_embedding__isnull=False)),
+        ).filter(total_resources__gt=0)
+
+        if self.value() == "yes":
+            return qs.filter(total_resources=F("with_embeddings"))
+        if self.value() == "no":
+            return qs.exclude(total_resources=F("with_embeddings"))
+        return qs
+
+# ---------------------------------------------------------------------------- #
 #                               Inline Admin                                    #
 # ---------------------------------------------------------------------------- #
 
@@ -160,8 +191,8 @@ class OERSourceFieldMappingInline(admin.TabularInline):
 @admin.register(OERSource)
 class OERSourceAdmin(admin.ModelAdmin):
     form = OERSourceForm  # Use the unified form
-    list_display = ['name', 'source_type', 'status_badge', 'last_harvest_display', 'harvest_action_buttons']
-    list_filter = ['source_type', 'status', 'is_active']
+    list_display = ['name', 'source_type', 'status_badge', 'last_harvest_display', 'resource_count', 'embedded_count', 'harvest_action_buttons']
+    list_filter = ['source_type', 'status', 'is_active', HasEmbeddingsFilter]
     search_fields = ['name', 'description']
     readonly_fields = ['created_at', 'updated_at', 'total_harvested', 'last_harvest_at']
     
@@ -248,6 +279,16 @@ class OERSourceAdmin(admin.ModelAdmin):
             return obj.last_harvest_at.strftime('%Y-%m-%d %H:%M')
         return format_html('<em>Never</em>')
     last_harvest_display.short_description = 'Last Harvest'
+
+    def resource_count(self, obj):
+        """Display total resource count for this source"""
+        return obj.oerresource_set.count()
+    resource_count.short_description = 'Resources'
+
+    def embedded_count(self, obj):
+        """Display count of resources with embeddings"""
+        return obj.oerresource_set.filter(content_embedding__isnull=False).count()
+    embedded_count.short_description = 'With Embedding'
 
     def harvest_action_buttons(self, obj):
         if not obj.is_active:
@@ -548,6 +589,7 @@ class OERResourceAdmin(admin.ModelAdmin):
         'title',
         'source',
         'publisher',
+        'date_first_published',
         'url_display',
         'normalised_type',  # ← CHANGED: was 'resource_type'
         'overall_quality_score',
@@ -558,6 +600,7 @@ class OERResourceAdmin(admin.ModelAdmin):
         'normalised_type',  # ← CHANGED: was 'resource_type'
         'is_active',
         'language',
+        'date_first_published',
         'overall_quality_score',
     ]
     search_fields = ['title', 'description', 'publisher', 'author']
@@ -599,7 +642,7 @@ class OERResourceAdmin(admin.ModelAdmin):
 
     fieldsets = (
         (None, {
-            'fields': ('title', 'publisher', 'author', 'source')
+            'fields': ('title', 'publisher', 'author', 'source', 'date_first_published')
         }),
         ('Content', {
             'fields': ('description', 'url', 'license', 'normalised_type', 'format')  

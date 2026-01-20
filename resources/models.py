@@ -186,6 +186,7 @@ class OERResource(models.Model):
     publisher = models.CharField(max_length=200, blank=True)
     author = models.CharField(max_length=200, blank=True)
     language = models.CharField(max_length=50, blank=True, default='en')
+    date_first_published = models.DateField(null=True, blank=True, help_text="Original publication date, if known.")
     
     # Resource Type and Format
     resource_type = models.CharField(max_length=100, blank=True)

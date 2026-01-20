@@ -115,7 +115,8 @@ print(f'✓ Model field exists: {field.name}')
 "
 
 # 5. Migration applied
-docker compose exec web python manage.py showmigrations resources | grep "0016"
+docker compose exec web python manage.py showmigrations resources | findstr "0016"
+
 # Should show: [X] 0016_oerresource_description_last_enriched_at
 ```
 
@@ -144,7 +145,8 @@ exit()
 
 ```bash
 # 2. Watch Celery logs
-docker compose logs -f celery | grep -i "enriched\|enrichment"
+docker compose logs -f celery | findstr /i "enriched enrichment"
+
 # Should see task execution within ~30 seconds
 
 # 3. Verify update
@@ -192,7 +194,7 @@ docker compose exec web python manage.py backfill_descriptions_from_url \
   --limit 5
 
 # 5. Monitor execution
-docker compose logs -f celery | grep "Enriched description"
+docker compose logs -f celery | findstr "Enriched description"
 # Should see 5 success messages within 1-2 minutes
 ```
 
