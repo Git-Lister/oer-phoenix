@@ -143,6 +143,26 @@ def _looks_like_url(url: str) -> bool:
 
 
 @register.filter
+def normalise_oer_url(url: str) -> str:
+    """Normalize known OER repository handles to stable landing-page URLs."""
+    if not url:
+        return url
+    if url.startswith("https://hdl.handle.net/20.500.12657/"):
+        return url.replace(
+            "https://hdl.handle.net/20.500.12657/",
+            "https://library.oapen.org/handle/20.500.12657/",
+            1,
+        )
+    if url.startswith("https://hdl.handle.net/20.500.12854/"):
+        return url.replace(
+            "https://hdl.handle.net/20.500.12854/",
+            "https://directory.doabooks.org/handle/20.500.12854/",
+            1,
+        )
+    return url
+
+
+@register.filter
 def link_type_button(resource):
     """
     Generate appropriate button text and icon based on link type.
@@ -161,7 +181,8 @@ def link_type_button(resource):
             '<span class="text-muted small">No external link available</span>'
         )
 
-    url = raw_url
+    # Apply URL normalisation (OAPEN/DOAB handles, etc.)
+    url = normalise_oer_url(raw_url)
     url_lower = url.lower()
     format_field = (
         resource.format.lower()

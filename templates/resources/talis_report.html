@@ -30,55 +30,91 @@
     </ul>
   {% endif %}
 
-  <h2>Per-item matches</h2>
+  <h2>Per‑item matches</h2>
 
-  {% for entry in item_analyses %}
-    {% with item=entry.item results=entry.results %}
-      <div class="mb-4">
-        <h4>
-          {{ item.position }}. {{ item.title }}
-          {% if item.authors %}<small>— {{ item.authors }}</small>{% endif %}
-        </h4>
-        <p>
-          {% if item.section %}<strong>Section:</strong> {{ item.section }} &nbsp; {% endif %}
-          {% if item.importance %}<strong>Importance:</strong> {{ item.importance }} &nbsp; {% endif %}
-          {% if item.item_type %}<strong>Type:</strong> {{ item.item_type }}{% endif %}
-        </p>
+  {# NEW: wrap per‑item matches in a form so we can export selected OERs #}
+  <form method="post" action="{% url 'resources:talis_export' %}">
+    {% csrf_token %}
 
-        {% if results %}
-          <table class="table table-sm">
-            <thead>
-              <tr>
-                <th>Rank</th>
-                <th>Title</th>
-                <th>Score</th>
-                <th>Source</th>
-                <th>Link</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for m in results %}
+    {% for entry in item_analyses %}
+      {% with item=entry.item results=entry.results %}
+        <div class="mb-4">
+          <h4>
+            {{ item.position }}. {{ item.title }}
+            {% if item.authors %}<small>— {{ item.authors }}</small>{% endif %}
+          </h4>
+          <p>
+            {% if item.section %}<strong>Section:</strong> {{ item.section }} &nbsp; {% endif %}
+            {% if item.importance %}<strong>Importance:</strong> {{ item.importance }} &nbsp; {% endif %}
+            {% if item.item_type %}<strong>Type:</strong> {{ item.item_type }}{% endif %}
+          </p>
+
+          {% if results %}
+            <table class="table table-sm align-middle">
+              <thead>
                 <tr>
-                  <td>{{ forloop.counter }}</td>
-                  <td>{{ m.title }}</td>
-                  <td>{{ m.final_score|floatformat:3 }}</td>
-                  <td>{{ m.source }}</td>
-                  <td>{% if m.url %}<a href="{{ m.url }}" target="_blank">Open</a>{% endif %}</td>
+                  <th scope="col">Include</th>
+                  <th scope="col">Rank</th>
+                  <th scope="col">Title</th>
+                  <th scope="col">Score</th>
+                  <th scope="col">Source</th>
+                  <th scope="col">Link</th>
                 </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        {% else %}
-          <p><em>No OER matches found for this item.</em></p>
-        {% endif %}
-      </div>
-    {% endwith %}
-  {% endfor %}
+              </thead>
+              <tbody>
+                {% for m in results %}
+                  <tr>
+                    <td>
+                      {# assume m.resource_id is the internal OERResource.pk #}
+                      <input
+                        type="checkbox"
+                        name="selected_resources"
+                        value="{{ m.resource_id }}"
+                        checked
+                      >
+                    </td>
+                    <td>{{ forloop.counter }}</td>
+                    <td>{{ m.title }}</td>
+                    <td>{{ m.final_score|floatformat:3 }}</td>
+                    <td>{{ m.source }}</td>
+                    <td>
+                      {% if m.url %}
+                        <a href="{{ m.url }}" target="_blank" rel="noopener">Open</a>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <p><em>No OER matches found for this item.</em></p>
+          {% endif %}
+        </div>
+      {% endwith %}
+    {% endfor %}
 
-  <a href="{% url 'resources:talis_report_download' %}" class="btn btn-outline-secondary">
-    Download CSV report
-  </a>
-  <a href="{% url 'resources:dashboard' %}" class="btn btn-secondary">Back to dashboard</a>
+    <div class="mb-3">
+      <label for="id_talis_title" class="form-label">Talis list title</label>
+      <input
+        type="text"
+        id="id_talis_title"
+        name="talis_title"
+        class="form-control"
+        value="{{ talis_list.title|default:'' }}"
+      >
+      <small class="form-text text-muted">
+        Optional. Used as the title if you push a new list into Talis.
+      </small>
+    </div>
+
+    <button type="submit" name="action" value="download_csv" class="btn btn-outline-secondary">
+      Download Talis‑compatible CSV
+    </button>
+    <button type="submit" name="action" value="push_talis" class="btn btn-primary">
+      Push to Talis Aspire
+    </button>
+    <a href="{% url 'resources:dashboard' %}" class="btn btn-secondary ms-1">Back to dashboard</a>
+  </form>
 
 {# Legacy CSV-based report from process_talis_csv #}
 {% elif report %}

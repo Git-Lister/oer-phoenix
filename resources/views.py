@@ -906,6 +906,67 @@ def csv_download(request):
 # Export Views
 def export_to_talis(request):
     try:
+        # NEW: handle POST from Talis AI report (checkboxes + action)
+        if request.method == "POST" and request.POST.getlist("selected_resources"):
+            from django.http import HttpResponse  # ensure this import exists at top of file
+            from .models import TalisPushJob     # these are already imported in this file
+            from .tasks import talis_push_report
+
+            selected_ids = request.POST.getlist("selected_resources")
+            action = request.POST.get("action")
+            talis_title = (request.POST.get("talis_title") or "").strip()
+            talis_description = (request.POST.get("talis_description") or "").strip()
+
+            resources = OERResource.objects.filter(id__in=selected_ids)
+
+            if not resources.exists():
+                messages.error(request, "No resources were selected for export.")
+                return redirect("resources:talis_report_dashboard")
+
+            if action == "download_csv":
+                import csv
+
+                filename = (talis_title or "oer_phoenix_talis_list").replace(" ", "_")
+                response = HttpResponse(content_type="text/csv")
+                response["Content-Disposition"] = f'attachment; filename=\"{filename}.csv\"'
+
+                writer = csv.writer(response)
+                # Adjust headers to match your Talis CSV template as needed
+                writer.writerow(["Title", "Author", "Web address", "Notes"])
+
+                for r in resources:
+                    writer.writerow([
+                        r.title,
+                        getattr(r, "authors", "") or "",
+                        r.url or "",
+                        talis_description,
+                    ])
+
+                return response
+
+            elif action == "push_talis":
+                job = TalisPushJob.objects.create(
+                    title=talis_title or "OER_Phoenix export",
+                    description=talis_description,
+                    report_snapshot=[{
+                        "id": int(r.pk),
+                        "title": r.title,
+                        "url": r.url,
+                    } for r in resources],
+                )
+                talis_push_report.delay(job.id)
+
+                messages.success(
+                    request,
+                    "Talis export job started. You can monitor progress on the Talis jobs page."
+                )
+                return redirect("resources:export_success")
+
+            else:
+                messages.error(request, "No export action was selected.")
+                return redirect("resources:talis_report_dashboard")
+
+        # FALLBACK: existing export form at /export/talis/
         if request.method == 'POST':
             form = TalisExportForm(request.POST)
             if form.is_valid():
@@ -914,7 +975,9 @@ def export_to_talis(request):
                     messages.error(request, "No resources were selected for export.")
                     return redirect('resources:export_to_talis')
 
-                request.session['export_resources'] = list(selected_resources.values_list('id', flat=True))
+                request.session['export_resources'] = list(
+                    selected_resources.values_list('id', flat=True)
+                )
                 request.session['talis_title'] = form.cleaned_data['title']
                 request.session['talis_description'] = form.cleaned_data.get('description', '')
                 return redirect('resources:talis_preview')
@@ -924,10 +987,12 @@ def export_to_talis(request):
             form = TalisExportForm()
 
         return render(request, 'resources/export.html', {'form': form})
+
     except Exception as e:
         logger.error(f"Error in export_to_talis: {str(e)}")
         messages.error(request, "An error occurred during the export process.")
         return redirect('resources:home')
+
 
 def talis_preview(request):
     try:
