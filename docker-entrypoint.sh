@@ -16,6 +16,8 @@ echo "Checking if database exists..."
 python manage.py shell -c "
 from django.conf import settings
 import psycopg2
+from psycopg2 import sql
+
 try:
     conn = psycopg2.connect(
         dbname='postgres',
@@ -25,18 +27,27 @@ try:
     )
     conn.autocommit = True
     cursor = conn.cursor()
-    cursor.execute('SELECT 1 FROM pg_database WHERE datname=%s', [settings.DATABASES['default']['NAME']])
+
+    dbname = settings.DATABASES['default']['NAME']
+
+    cursor.execute('SELECT 1 FROM pg_database WHERE datname = %s', (dbname,))
     exists = cursor.fetchone()
+
     if not exists:
-        cursor.execute('CREATE DATABASE \"' + settings.DATABASES['default']['NAME'] + '\" WITH ENCODING '\''UTF8'\'' TEMPLATE template0;')
+        create_db = sql.SQL('CREATE DATABASE {} WITH ENCODING %s TEMPLATE template0;').format(
+            sql.Identifier(dbname)
+        )
+        cursor.execute(create_db, ('UTF8',))
         print('Database created')
     else:
         print('Database already exists')
+
     cursor.close()
     conn.close()
 except Exception as e:
     print('Database error:', str(e))
 "
+
 
 # Enable vector extension
 echo "Enabling vector extension..."

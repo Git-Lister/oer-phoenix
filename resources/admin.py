@@ -282,12 +282,12 @@ class OERSourceAdmin(admin.ModelAdmin):
 
     def resource_count(self, obj):
         """Display total resource count for this source"""
-        return obj.oerresource_set.count()
+        return obj.resources.count()
     resource_count.short_description = 'Resources'
 
     def embedded_count(self, obj):
         """Display count of resources with embeddings"""
-        return obj.oerresource_set.filter(content_embedding__isnull=False).count()
+        return obj.resources.filter(content_embedding__isnull=False).count()
     embedded_count.short_description = 'With Embedding'
 
     def harvest_action_buttons(self, obj):
