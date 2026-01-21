@@ -326,6 +326,20 @@
 {% endblock %}
 
 {% block extra_js %}
+
+<style>
+  /* Subtle highlight for dashboard AI citations */
+  .citation-link {
+    color: #28a745;
+    text-decoration: none;
+    border-radius: 3px;
+  }
+  .citation-link:hover {
+    background-color: rgba(40, 167, 69, 0.08);
+    text-decoration: underline;
+  }
+</style>
+
 <script>
 // Resource Type Breakdown Chart
 {% if chart_labels and chart_data %}
@@ -418,12 +432,13 @@ document.getElementById('dashboard-ai-query-form').addEventListener('submit', as
     html += `<div class="card-body">`;
     html += `<p class="card-text">${data.answer_html || data.answer}</p>`;
     
-    // Render citations if available
-    if (data.cited_resources && data.cited_resources.length > 0) {
-      html += `<hr><small class="text-muted"><strong>Related Resources:</strong></small><br>`;
-      data.cited_resources.forEach(resource => {
-        html += `<a href="${resource.url || '#'}" class="citation-link d-inline-block me-2" style="color: #28a745; text-decoration: none; border-bottom: 2px solid rgba(40, 167, 69, 0.3);">` +
-                `${resource.title || 'Resource'}</a>`;
+    // Render citations using internal detail pages
+    if (data.resources && data.resources.length > 0) {
+      html += `<hr><small class="text-muted"><strong>Related resources:</strong></small><br>`;
+      data.resources.forEach(resource => {
+        const detailUrl = `/resource/${resource.id}/`;  // internal record page
+        html += `<a href="${detailUrl}" class="citation-link d-block mb-1 p-1">` +
+                `[R${resource.id}] ${resource.title || 'Resource'}</a>`;
       });
     }
     
@@ -437,4 +452,5 @@ document.getElementById('dashboard-ai-query-form').addEventListener('submit', as
   }
 });
 </script>
+
 {% endblock %}
