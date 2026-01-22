@@ -157,8 +157,8 @@ class HasEmbeddingsFilter(admin.SimpleListFilter):
 
     def lookups(self, request, model_admin):
         return [
-            ("yes", "All resources have embeddings"),
-            ("no", "Some resources missing embeddings"),
+            ("yes", Resources with embeddings"),
+            ("no", "Resources without embeddings
         ]
 
     def queryset(self, request, queryset):
@@ -166,8 +166,8 @@ class HasEmbeddingsFilter(admin.SimpleListFilter):
             return queryset
 
         qs = queryset.annotate(
-            total_resources=Count("oerresource"),
-            with_embeddings=Count("oerresource", filter=Q(oerresource__content_embedding__isnull=False)),
+            total_resources=Count("resources"),
+            with_embeddings=Count("resources", filter=Q(resources=False)),
         ).filter(total_resources__gt=0)
 
         if self.value() == "yes":
@@ -301,6 +301,7 @@ class OERSourceAdmin(admin.ModelAdmin):
             '''
             <a class="button" href="{}" style="background-color: #417690; color: white; 
             padding: 5px 10px; text-decoration: none; border-radius: 3px; margin-right: 5px;">🌾 Harvest</a>
+            <br>
             <a class="button" href="{}" style="background-color: #28a745; color: white; 
             padding: 5px 10px; text-decoration: none; border-radius: 3px;">🧪 Test</a>
             ''',
