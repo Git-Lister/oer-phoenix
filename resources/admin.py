@@ -158,7 +158,7 @@ class HasEmbeddingsFilter(admin.SimpleListFilter):
     def lookups(self, request, model_admin):
         return [
             ("yes", Resources with embeddings"),
-            ("no", "Resources without embeddings
+            ("no", "Resources without embeddings"),
         ]
 
     def queryset(self, request, queryset):
