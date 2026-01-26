@@ -763,15 +763,12 @@ def csv_upload(request):
         return redirect('resources:csv_upload')
 
 @staff_required
-def add_oer_source_supplier(request):
+def add_oer_source(request):
     """
     Staff-only view for adding an OERSource using supplier-first presets.
-
-    This complements the existing Django admin add view and uses OERSourceForm
-    so validation and field behaviour remain consistent.
     """
     if request.method == "POST":
-        form = OERSourceForm(request.POST, request.FILES)
+        form = OERSourceForm(request.POST)
         if form.is_valid():
             form.save()
             messages.success(request, "OER source created.")
@@ -779,11 +776,10 @@ def add_oer_source_supplier(request):
     else:
         form = OERSourceForm()
 
-    # Build preset payload for the JS
     presets_for_ui = []
     for preset_id, entry in SUPPLIER_PRESETS.items():
-        proto = entry.get("protocol")
-        preset_key = entry.get("preset_key")
+        proto = entry["protocol"]
+        preset_key = entry["preset_key"]
 
         config = {}
         if preset_key and proto in PRESET_CONFIGS:
@@ -792,11 +788,11 @@ def add_oer_source_supplier(request):
         presets_for_ui.append(
             {
                 "id": preset_id,
-                "label": entry.get("label", preset_id),
+                "label": entry["label"],
                 "protocol": proto,
                 "preset_key": preset_key,
-                "supplier": entry.get("supplier", ""),
-                "content_scope": entry.get("content_scope", ""),
+                "supplier": entry["supplier"],
+                "content_scope": entry["content_scope"],
                 "api_endpoint": config.get("api_endpoint", ""),
                 "oaipmh_url": config.get("oaipmh_url", ""),
                 "csv_url": config.get("csv_url", ""),
@@ -813,6 +809,7 @@ def add_oer_source_supplier(request):
         "oer_presets_json": json.dumps(presets_for_ui),
     }
     return render(request, "admin/resources/add_oer_source.html", context)
+
 
 
 @staff_required

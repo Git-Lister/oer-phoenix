@@ -32,7 +32,7 @@ class PresetAPIConfigs:
         #SUBJECTS: Humanities, Social Sciences, interdisciplinary
         #LANGUAGE: Multilingual (primarily English, German, French, Dutch)
         #STATUS: Verified working (Jan 2026)
-        
+
         Uses dc.type metadata query to filter for chapter-level records.
         Each record represents a single book chapter with downloadable PDF.
         """
@@ -60,7 +60,7 @@ class PresetAPIConfigs:
         #LANGUAGE: Multilingual (primarily English, German, French, Dutch)
         #STATUS: Verified working (Jan 2026)
         #RESOURCE_TYPE: Book/Monograph (complete works)
-        
+
         Harvests full book metadata with bitstream links.
         Use this for monograph-level cataloging.
         """
@@ -89,8 +89,8 @@ class PresetAPIConfigs:
         #STATUS: Verified working (Jan 2026)
         #RESOURCE_TYPE: Book/Monograph
         #NOTE: DOAB is an aggregator - provides metadata only, not full text
-        
-        DOAB aggregates OA books from multiple publishers. 
+
+        DOAB aggregates OA books from multiple publishers.
         Metadata describes books, but full text is on publisher sites.
         """
         return {
@@ -103,24 +103,12 @@ class PresetAPIConfigs:
             "max_resources_per_harvest": 2000,
         }
 
+    # UNVERIFIED/EXPERIMENTAL – kept for reference but not exposed via SUPPLIER_PRESETS
+
     @staticmethod
     def get_merlot_api_config():
         """
-        MERLOT - Learning Objects Repository
-        =====================================
-        #TAG: API_Harvester #Learning_Objects #Course_Materials #K12_Higher_Ed
-        #CONTENT: Peer-reviewed learning materials, exercises, simulations
-        #SUBJECTS: All disciplines (organized by discipline communities)
-        #LANGUAGE: Primarily English
-        #STATUS: UNVERIFIED - No public API documentation found (Jan 2026)
-        #RESOURCE_TYPE: Learning Object, Exercise, Simulation, Tool
-        #WARNING: This endpoint may not exist or may require authentication
-        
-        MERLOT contains 91,000+ learning materials across 22 categories.
-        Materials are peer-reviewed by discipline-specific communities.
-        
-        **IMPORTANT**: This preset requires verification. MERLOT may not
-        offer a public REST API. Consider using CSV export or web scraping instead.
+        MERLOT - Learning Objects Repository (UNVERIFIED)
         """
         return {
             "name": "MERLOT API (UNVERIFIED)",
@@ -135,21 +123,7 @@ class PresetAPIConfigs:
     @staticmethod
     def get_openstax_api_config():
         """
-        OpenStax - Open Textbooks API
-        ==============================
-        #TAG: API_Harvester #Textbooks #Higher_Education #K12
-        #CONTENT: Peer-reviewed, openly licensed college textbooks
-        #SUBJECTS: STEM, Business, Humanities, Social Sciences
-        #LANGUAGE: English (some translations available)
-        #STATUS: NEEDS VERIFICATION - Endpoint structure uncertain (Jan 2026)
-        #RESOURCE_TYPE: Textbook (complete, course-ready textbooks)
-        #FORMATS: PDF, HTML, editable formats
-        
-        OpenStax provides ~50 high-quality textbooks covering major college courses.
-        All books are peer-reviewed and professionally designed.
-        
-        **NOTE**: This endpoint may need adjustment. OpenStax likely requires
-        different API access patterns. Verify before use.
+        OpenStax - Open Textbooks API (NEEDS VERIFICATION)
         """
         return {
             "name": "OpenStax API (NEEDS VERIFICATION)",
@@ -168,17 +142,10 @@ class PresetOAIPMHConfigs:
     ============================
     OAI-PMH (Open Archives Initiative Protocol for Metadata Harvesting)
     is a standardized protocol for harvesting metadata from digital repositories.
-    
+
     Unlike REST APIs, OAI-PMH is specifically designed for library/repository
     interoperability and uses Dublin Core metadata as its base format.
-    
-    KEY DIFFERENCES FROM APIs:
-    - Standardized XML-based protocol
-    - Mandatory Dublin Core support
-    - Built-in resumption tokens for large harvests
-    - Set-based selective harvesting
-    - Datestamp-based incremental updates
-    
+
     NOTE: OAPEN and DOAB OAI-PMH endpoints are currently broken.
     Use KBART/MARCXML/REST API alternatives instead.
     """
@@ -190,20 +157,7 @@ class PresetOAIPMHConfigs:
         ===================================================
         #TAG: OAI-PMH_Harvester #Workforce_Training #Career_Technical_Education
         #CONTENT: Job training materials, workforce development resources
-        #SUBJECTS: Career/Technical Education, Workforce Development
-        #LANGUAGE: English
         #STATUS: ✅ VERIFIED WORKING (Jan 14, 2026)
-        #RESOURCE_TYPE: Mixed (lessons, modules, assessments, simulations)
-        #PLATFORM: Digital Commons (Elsevier/bePress)
-        
-        **VERIFIED**: Correct URL is library.skillscommons.org/server/oai/request
-        
-        Skills Commons focuses on:
-        - Career and Technical Education (CTE) materials
-        - Workforce development and job training
-        - Community college vocational programs
-        - Industry-specific training modules
-        - Trade and technical skills
         """
         return {
             "name": "Skills Commons OER (OAI-PMH) ✅",
@@ -216,20 +170,12 @@ class PresetOAIPMHConfigs:
             "max_resources_per_harvest": 10000,
         }
 
+    # NOT RESPONDING – kept for reference, not wired into SUPPLIER_PRESETS
+
     @staticmethod
     def get_mit_oaipmh_config():
         """
-        MIT OpenCourseWare - OAI-PMH ENDPOINT
-        ======================================
-        #TAG: OAI-PMH_Harvester #Courses #Courseware #Higher_Education
-        #CONTENT: Complete MIT course materials
-        #SUBJECTS: STEM, Engineering, Humanities, Social Sciences, Business
-        #LANGUAGE: English (some translations)
-        #STATUS: ⚠️ ENDPOINT NOT RESPONDING (Tested Jan 14, 2026)
-        #WARNING: MIT OCW may have discontinued OAI-PMH support
-        
-        **RECOMMENDATION**: Disable this preset or investigate alternative
-        MIT OCW data access methods.
+        MIT OpenCourseWare - OAI-PMH ENDPOINT (NOT RESPONDING)
         """
         return {
             "name": "MIT OpenCourseWare (OAI-PMH) ⚠️",
@@ -245,15 +191,7 @@ class PresetOAIPMHConfigs:
     @staticmethod
     def get_oe_global_oaipmh_config():
         """
-        Open Education Global Repository - OAI-PMH ENDPOINT
-        ====================================================
-        #TAG: OAI-PMH_Harvester #Mixed_OER_Types #Global_Repository
-        #CONTENT: Conference papers, presentations, teaching materials
-        #SUBJECTS: Open Education practice and research
-        #LANGUAGE: Multilingual
-        #STATUS: ⚠️ ENDPOINT NOT RESPONDING (Tested Jan 14, 2026)
-        
-        **RECOMMENDATION**: Verify current status before enabling.
+        Open Education Global Repository - OAI-PMH ENDPOINT (NOT RESPONDING)
         """
         return {
             "name": "OE Global Repository (OAI-PMH) ⚠️",
@@ -272,10 +210,6 @@ class PresetCSVConfigs:
     CSV/TSV/KBART-based harvesters
     ===============================
     These presets harvest from CSV, TSV (tab-separated), or KBART data exports.
-    Simpler than APIs but less real-time - usually bulk exports updated
-    periodically by the source repository.
-    
-    Good for: One-time bulk imports, KBART library holdings, publisher catalogs
     """
 
     @staticmethod
@@ -284,21 +218,7 @@ class PresetCSVConfigs:
         OAPEN Library - KBART Books Export
         ====================================
         #TAG: KBART_Harvester #Books #Tab_Separated #WORKING
-        #CONTENT: Complete OAPEN book catalog in KBART format
         #STATUS: ✅ VERIFIED WORKING (Jan 14, 2026)
-        #RESOURCE_TYPE: Book-level records
-        #FORMAT: Tab-separated values (TSV)
-        
-        ⭐ RECOMMENDED METHOD for harvesting OAPEN ⭐
-        
-        OAPEN's OAI-PMH endpoint is currently broken (returns no records).
-        Use this KBART export instead for reliable OAPEN harvesting.
-        
-        Provides standardized bibliographic data including:
-        - Title, ISBN, Publisher
-        - URLs to full text
-        - Coverage dates
-        - License information
         """
         return {
             "name": "OAPEN Library (KBART) ✅ RECOMMENDED",
@@ -313,19 +233,7 @@ class PresetCSVConfigs:
     @staticmethod
     def get_oer_commons_csv_config():
         """
-        OER Commons - CSV Export
-        =========================
-        #TAG: CSV_Harvester #Mixed_OER_Types #K12_Higher_Ed
-        #CONTENT: Diverse OER materials (lessons, courses, textbooks, media)
-        #SUBJECTS: All K-12 and higher education subjects
-        #LANGUAGE: Primarily English
-        #STATUS: UNVERIFIED - Export URL may require authentication (Jan 2026)
-        #RESOURCE_TYPE: Mixed (textbooks, courses, lessons, videos, simulations)
-        
-        OER Commons is one of the largest OER repositories with 440,000+ resources.
-        
-        **NOTE**: CSV export may require account login or may be available
-        only through their API. Verify access before enabling.
+        OER Commons - CSV Export (UNVERIFIED)
         """
         return {
             "name": "OER Commons CSV (UNVERIFIED)",
@@ -340,17 +248,7 @@ class PresetCSVConfigs:
     @staticmethod
     def get_skills_commons_csv_config():
         """
-        Skills Commons - CSV Export
-        ============================
-        #TAG: CSV_Harvester #Workforce_Training #Career_Technical_Education
-        #CONTENT: Workforce development OER materials
-        #SUBJECTS: Career/Technical Education, Trade Skills
-        #LANGUAGE: English
-        #STATUS: UNVERIFIED - Export endpoint uncertain (Jan 2026)
-        #RESOURCE_TYPE: Mixed training materials
-        
-        **NOTE**: This CSV endpoint is speculative. Skills Commons may not
-        offer direct CSV exports. Consider using OAI-PMH instead (which is working).
+        Skills Commons - CSV Export (UNVERIFIED)
         """
         return {
             "name": "Skills Commons CSV (UNVERIFIED)",
@@ -367,29 +265,6 @@ class PresetCSVConfigs:
         """
         KBART Format Import - Generic Template
         ========================================
-        #TAG: TSV_Harvester #KBART #Library_Holdings #Publisher_Catalogs
-        #CONTENT: Standardized library holdings/catalog data
-        #SUBJECTS: Any (depends on source)
-        #LANGUAGE: Any (depends on source)
-        #STATUS: Generic import template (Jan 2026)
-        #RESOURCE_TYPE: Serials, Monographs (structured bibliographic data)
-        #FORMAT: KBART Phase I/II compliant TSV
-        
-        KBART (Knowledge Bases And Related Tools) is a NISO standard
-        for exchanging library holdings information. Common uses:
-        
-        - Publisher catalog imports (e.g., Springer, Wiley catalogs)
-        - Subscription package definitions
-        - Open Access publisher collections
-        - Institutional repository exports
-        
-        **USAGE**: Admin provides KBART file URL when creating harvest source.
-        This is a generic template for any KBART-compliant import.
-        
-        KBART includes fields like:
-        - publication_title, print_identifier, online_identifier
-        - date_first_issue_online, date_last_issue_online
-        - coverage_depth, publisher_name
         """
         return {
             "name": "KBART (TSV) Import - Generic",
@@ -411,12 +286,11 @@ PRESET_CONFIGS = {
         "oapen_books": PresetAPIConfigs.get_oapen_books_api_config(),
         "oapen_chapters": PresetAPIConfigs.get_oapen_chapters_api_config(),
         "doab": PresetAPIConfigs.get_doab_api_config(),
-        # "merlot": PresetAPIConfigs.get_merlot_api_config(),      # UNVERIFIED - hidden
-        # "openstax": PresetAPIConfigs.get_openstax_api_config(),  # UNVERIFIED - hidden
+        # "merlot": PresetAPIConfigs.get_merlot_api_config(),       # UNVERIFIED - hidden
+        # "openstax": PresetAPIConfigs.get_openstax_api_config(),   # UNVERIFIED - hidden
     },
     "OAIPMH": {
-        # REMOVED: "oapen" - OAI-PMH endpoint broken (empty repository)
-        # REMOVED: "doab" - OAI-PMH endpoint returns 503 errors
+        # OAPEN and DOAB OAI-PMH endpoints are broken; do not expose here
         "skills_commons": PresetOAIPMHConfigs.get_skills_commons_oaipmh_config(),
         # "mit": PresetOAIPMHConfigs.get_mit_oaipmh_config(),       # NOT RESPONDING - hidden
         # "oe_global": PresetOAIPMHConfigs.get_oe_global_oaipmh_config(),  # NOT RESPONDING - hidden
@@ -428,18 +302,36 @@ PRESET_CONFIGS = {
         "kbart_generic": PresetCSVConfigs.get_kbart_tsv_config(),
     },
     "MARCXML": {
+        # Kept as placeholders; fill with real MARCXML configs as needed
         "oapen": {
-            ...
+            "name": "OAPEN MARCXML (Books)",
+            "description": "OAPEN books via MARCXML export.",
+            "marcxml_url": "https://memo.oapen.org/file/oapen/OAPENLibrary_MARCXML_books.xml",
+            "request_params": {},
+            "request_headers": {},
+            "harvest_schedule": "weekly",
+            "max_resources_per_harvest": 5000,
         },
         "oapen_chapters": {
-            ...
+            "name": "OAPEN MARCXML (Chapters)",
+            "description": "OAPEN chapters via MARCXML export.",
+            "marcxml_url": "",
+            "request_params": {},
+            "request_headers": {},
+            "harvest_schedule": "weekly",
+            "max_resources_per_harvest": 5000,
         },
         "doab": {
-            ...
+            "name": "DOAB MARCXML",
+            "description": "DOAB MARCXML export (endpoint to be configured).",
+            "marcxml_url": "",
+            "request_params": {},
+            "request_headers": {},
+            "harvest_schedule": "weekly",
+            "max_resources_per_harvest": 5000,
         },
     },
 }
-
 
 
 # =============================================================================
@@ -447,52 +339,50 @@ PRESET_CONFIGS = {
 # =============================================================================
 
 SUPPLIER_PRESETS = {
-    # OAPEN – REST API (Books)
+    # OAPEN – REST API (Books/Chapters)
     "oapen_books_api": {
         "label": "OAPEN – Books – API",
         "supplier": "OAPEN",
         "content_scope": "Books",
         "protocol": "API",
-        "preset_key": "oapen_books",  # PRESET_CONFIGS["API"]["oapen_books"]
+        "preset_key": "oapen_books",   # PRESET_CONFIGS["API"]
     },
-
-    # OAPEN – REST API (Chapters)
     "oapen_chapters_api": {
         "label": "OAPEN – Chapters – API",
         "supplier": "OAPEN",
         "content_scope": "Chapters",
         "protocol": "API",
-        "preset_key": "oapen_chapters",  # PRESET_CONFIGS["API"]["oapen_chapters"]
+        "preset_key": "oapen_chapters",
     },
 
-    # DOAB – REST API (Books)
+    # DOAB – REST API
     "doab_books_api": {
         "label": "DOAB – Books – API",
         "supplier": "DOAB",
         "content_scope": "Books",
         "protocol": "API",
-        "preset_key": "doab",  # PRESET_CONFIGS["API"]["doab"]
+        "preset_key": "doab",
     },
 
-    # Skills Commons – OAI-PMH
+    # Skills Commons – OAI-PMH (working)
     "skills_commons_oaipmh": {
         "label": "Skills Commons – Various – OAI-PMH",
         "supplier": "Skills Commons",
         "content_scope": "Various",
         "protocol": "OAIPMH",
-        "preset_key": "skills_commons",  # PRESET_CONFIGS["OAIPMH"]["skills_commons"]
+        "preset_key": "skills_commons",
     },
 
-    # Generic KBART (TSV) – CSV
+    # Generic KBART – CSV (working)
     "generic_kbart": {
         "label": "Generic – KBART (TSV) Import",
         "supplier": "Generic",
         "content_scope": "KBART holdings",
         "protocol": "CSV",
-        "preset_key": "kbart_generic",  # PRESET_CONFIGS["CSV"]["kbart_generic"]
+        "preset_key": "kbart_generic",
     },
 
-    # Custom templates – manual configuration
+    # Custom – manual presets
     "custom_api": {
         "label": "Custom – API (manual configuration)",
         "supplier": "Custom",
@@ -522,59 +412,3 @@ SUPPLIER_PRESETS = {
         "preset_key": None,
     },
 }
-
-
-# =============================================================================
-# PRESET TESTING & VALIDATION
-# =============================================================================
-"""
-ENDPOINT VALIDATION STATUS (Tested: January 14, 2026)
-======================================================
-
-✅ VERIFIED WORKING:
-    - Skills Commons OAI-PMH: https://library.skillscommons.org/server/oai/request
-    - OAPEN KBART: https://memo.oapen.org/file/oapen/OAPENLibrary_KBART_books.tsv
-    - OAPEN MARCXML: https://memo.oapen.org/file/oapen/OAPENLibrary_MARCXML_books.xml
-    - OAPEN REST API: https://library.oapen.org/rest/search
-    - DOAB REST API: https://directory.doabooks.org/rest/search
-
-❌ BROKEN - DO NOT USE:
-    - OAPEN OAI-PMH: https://library.oapen.org/oai/request
-      → Repository is EMPTY (returns "No matches" for all queries)
-      → Even official documented examples return no records
-      → Use KBART/MARCXML/REST API alternatives instead
-
-⚠️ SERVER ERRORS:
-    - DOAB OAI-PMH: https://directory.doabooks.org/oai/request
-      → Returns 503 Service Unavailable
-      → May be temporarily down
-      → Use REST API or MARCXML alternatives instead
-
-⚠️ NOT RESPONDING (Endpoints don't respond):
-    - MIT OCW OAI-PMH: https://ocw.mit.edu/oaipmh
-    - OE Global OAI-PMH: https://repository.oeglobal.org/oai/request
-
-❓ UNVERIFIED (No public documentation found):
-    - MERLOT API: https://api.merlot.org/materials
-    - OpenStax API: https://openstax.org/api/v2/pages
-    - OER Commons CSV: https://www.oercommons.org/export/csv
-    - Skills Commons CSV: https://www.skillscommons.org/export/oer.csv
-
-RECOMMENDATIONS:
-================
-1. ✅ USE: OAPEN KBART preset for OAPEN harvesting (most reliable)
-2. ✅ USE: Skills Commons OAI-PMH (working correctly)
-3. ✅ USE: REST APIs for OAPEN/DOAB (real-time access)
-4. ❌ REMOVED: OAPEN and DOAB from OAIPMH registry (broken/unavailable)
-5. ⚠️ MARK AS EXPERIMENTAL: MIT, OE Global (not responding)
-6. 🔍 INVESTIGATE: MERLOT, OpenStax (need API documentation)
-
-IMPORTANT NOTES:
-================
-- OAPEN's OAI-PMH is marked "VERIFIED WORKING" in their docs but is actually EMPTY
-- DOAB's OAI-PMH returns 503 errors despite documentation claiming it works
-- Skills Commons requires specific URL: library.skillscommons.org/server/oai/request
-  (NOT www.skillscommons.org/oai/request as documented elsewhere)
-"""
-
-

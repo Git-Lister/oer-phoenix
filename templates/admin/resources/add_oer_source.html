@@ -25,9 +25,9 @@
     </div>
   </form>
 
-<script>
-  window.OER_PRESETS = JSON.parse('{{ oer_presets_json|escapejs }}');
-</script>
+  <script>
+    window.OER_PRESETS = JSON.parse('{{ oer_presets_json|escapejs }}');
+  </script>
 
   {# Existing dynamic behaviour for OERSource admin form #}
   <script src="{% static 'admin/js/oer_source_dynamic_improved.js' %}"></script>
