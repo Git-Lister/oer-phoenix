@@ -10,7 +10,7 @@ from django.urls import reverse
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db import models
 from django.db.models import Count
-from .harvesters.preset_configs import PRESET_CONFIGS
+from .harvesters.preset_configs import SUPPLIER_PRESETS, PRESET_CONFIGS
 import csv
 import io
 import json

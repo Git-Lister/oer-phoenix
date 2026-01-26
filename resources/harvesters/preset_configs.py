@@ -411,64 +411,115 @@ PRESET_CONFIGS = {
         "oapen_books": PresetAPIConfigs.get_oapen_books_api_config(),
         "oapen_chapters": PresetAPIConfigs.get_oapen_chapters_api_config(),
         "doab": PresetAPIConfigs.get_doab_api_config(),
-        "merlot": PresetAPIConfigs.get_merlot_api_config(),
-        "openstax": PresetAPIConfigs.get_openstax_api_config(),
+        # "merlot": PresetAPIConfigs.get_merlot_api_config(),      # UNVERIFIED - hidden
+        # "openstax": PresetAPIConfigs.get_openstax_api_config(),  # UNVERIFIED - hidden
     },
     "OAIPMH": {
         # REMOVED: "oapen" - OAI-PMH endpoint broken (empty repository)
         # REMOVED: "doab" - OAI-PMH endpoint returns 503 errors
         "skills_commons": PresetOAIPMHConfigs.get_skills_commons_oaipmh_config(),
-        "mit": PresetOAIPMHConfigs.get_mit_oaipmh_config(),
-        "oe_global": PresetOAIPMHConfigs.get_oe_global_oaipmh_config(),
+        # "mit": PresetOAIPMHConfigs.get_mit_oaipmh_config(),       # NOT RESPONDING - hidden
+        # "oe_global": PresetOAIPMHConfigs.get_oe_global_oaipmh_config(),  # NOT RESPONDING - hidden
     },
     "CSV": {
         "oapen_kbart": PresetCSVConfigs.get_oapen_kbart_config(),  # ⭐ RECOMMENDED for OAPEN
-        "oer_commons": PresetCSVConfigs.get_oer_commons_csv_config(),
-        "skills_commons_csv": PresetCSVConfigs.get_skills_commons_csv_config(),
+        # "oer_commons": PresetCSVConfigs.get_oer_commons_csv_config(),      # UNVERIFIED - hidden
+        # "skills_commons_csv": PresetCSVConfigs.get_skills_commons_csv_config(),  # UNVERIFIED - hidden
         "kbart_generic": PresetCSVConfigs.get_kbart_tsv_config(),
     },
     "MARCXML": {
         "oapen": {
-            "name": "OAPEN MARCXML (Books)",
-            "description": (
-                "OAPEN MARCXML dump (books). Full MARC21 bibliographic data.\n"
-                "#TAG: MARCXML_Harvester #Books #Library_Catalog_Format\n"
-                "#CONTENT: Complete OAPEN Library catalog in MARC21 format\n"
-                "#STATUS: ✅ Verified working (Jan 2026)\n"
-                "#RESOURCE_TYPE: Book-level records\n"
-                "#NOTE: Richer than Dublin Core, includes full cataloging data"
-            ),
-            "marcxml_url": "https://memo.oapen.org/file/oapen/OAPENLibrary_MARCXML_books.xml",
-            "harvest_schedule": "manual",
-            "max_resources_per_harvest": 5000,
+            ...
         },
         "oapen_chapters": {
-            "name": "OAPEN MARCXML (Chapters)",
-            "description": (
-                "OAPEN MARCXML dump (chapters). Chapter-level records in MARC21.\n"
-                "#TAG: MARCXML_Harvester #Book_Chapters #Library_Catalog_Format\n"
-                "#CONTENT: OAPEN chapter-level records in MARC21 format\n"
-                "#STATUS: ✅ Verified working (Jan 2026)\n"
-                "#RESOURCE_TYPE: Chapter-level records"
-            ),
-            "marcxml_url": "https://memo.oapen.org/file/oapen/OAPENLibrary_MARCXML_chapters.xml",
-            "harvest_schedule": "manual",
-            "max_resources_per_harvest": 5000,
+            ...
         },
         "doab": {
-            "name": "DOAB MARCXML",
-            "description": (
-                "DOAB MARCXML export. Full MARC21 bibliographic data.\n"
-                "#TAG: MARCXML_Harvester #Books #Library_Catalog_Format\n"
-                "#CONTENT: Complete DOAB catalog in MARC21 format\n"
-                "#STATUS: ⚠️ Needs verification (Jan 2026)\n"
-                "#RESOURCE_TYPE: Book-level records\n"
-                "#NOTE: Full MARC21 bibliographic data for library catalogs"
-            ),
-            "marcxml_url": "https://directory.doabooks.org/metadata/marcxml",
-            "harvest_schedule": "manual",
-            "max_resources_per_harvest": 5000,
+            ...
         },
+    },
+}
+
+
+
+# =============================================================================
+# SUPPLIER-FIRST PRESET REGISTRY (for UI)
+# =============================================================================
+
+SUPPLIER_PRESETS = {
+    # OAPEN – REST API (Books)
+    "oapen_books_api": {
+        "label": "OAPEN – Books – API",
+        "supplier": "OAPEN",
+        "content_scope": "Books",
+        "protocol": "API",
+        "preset_key": "oapen_books",  # PRESET_CONFIGS["API"]["oapen_books"]
+    },
+
+    # OAPEN – REST API (Chapters)
+    "oapen_chapters_api": {
+        "label": "OAPEN – Chapters – API",
+        "supplier": "OAPEN",
+        "content_scope": "Chapters",
+        "protocol": "API",
+        "preset_key": "oapen_chapters",  # PRESET_CONFIGS["API"]["oapen_chapters"]
+    },
+
+    # DOAB – REST API (Books)
+    "doab_books_api": {
+        "label": "DOAB – Books – API",
+        "supplier": "DOAB",
+        "content_scope": "Books",
+        "protocol": "API",
+        "preset_key": "doab",  # PRESET_CONFIGS["API"]["doab"]
+    },
+
+    # Skills Commons – OAI-PMH
+    "skills_commons_oaipmh": {
+        "label": "Skills Commons – Various – OAI-PMH",
+        "supplier": "Skills Commons",
+        "content_scope": "Various",
+        "protocol": "OAIPMH",
+        "preset_key": "skills_commons",  # PRESET_CONFIGS["OAIPMH"]["skills_commons"]
+    },
+
+    # Generic KBART (TSV) – CSV
+    "generic_kbart": {
+        "label": "Generic – KBART (TSV) Import",
+        "supplier": "Generic",
+        "content_scope": "KBART holdings",
+        "protocol": "CSV",
+        "preset_key": "kbart_generic",  # PRESET_CONFIGS["CSV"]["kbart_generic"]
+    },
+
+    # Custom templates – manual configuration
+    "custom_api": {
+        "label": "Custom – API (manual configuration)",
+        "supplier": "Custom",
+        "content_scope": "Manual",
+        "protocol": "API",
+        "preset_key": None,
+    },
+    "custom_oaipmh": {
+        "label": "Custom – OAI-PMH (manual configuration)",
+        "supplier": "Custom",
+        "content_scope": "Manual",
+        "protocol": "OAIPMH",
+        "preset_key": None,
+    },
+    "custom_marcxml": {
+        "label": "Custom – MARCXML (manual configuration)",
+        "supplier": "Custom",
+        "content_scope": "Manual",
+        "protocol": "MARCXML",
+        "preset_key": None,
+    },
+    "custom_csv": {
+        "label": "Custom – CSV / KBART (manual configuration)",
+        "supplier": "Custom",
+        "content_scope": "Manual",
+        "protocol": "CSV",
+        "preset_key": None,
     },
 }
 
@@ -525,3 +576,5 @@ IMPORTANT NOTES:
 - Skills Commons requires specific URL: library.skillscommons.org/server/oai/request
   (NOT www.skillscommons.org/oai/request as documented elsewhere)
 """
+
+
