@@ -1,0 +1,37 @@
+{# templates/admin/resources/add_oer_source.html #}
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block content %}
+  <h1>Add OER Source (Supplier-first)</h1>
+
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+
+    <div class="form-row">
+      <label for="id_oer_preset" class="required">Select OER Source:</label>
+      <select id="id_oer_preset" class="vForeignKeyRawIdAdminField">
+        <option value="">-- Choose a preset or custom configuration --</option>
+      </select>
+      <p class="help">
+        Presets automatically fill technical fields. Choose a “Custom” option at the bottom to configure manually.
+      </p>
+    </div>
+
+    {{ form.as_p }}
+
+    <div class="submit-row">
+      <input type="submit" value="Save" class="default">
+    </div>
+  </form>
+
+<script>
+  window.OER_PRESETS = JSON.parse('{{ oer_presets_json|escapejs }}');
+</script>
+
+  {# Existing dynamic behaviour for OERSource admin form #}
+  <script src="{% static 'admin/js/oer_source_dynamic_improved.js' %}"></script>
+
+  {# New supplier-first preset behaviour #}
+  <script src="{% static 'resources/js/oer_source_presets_supplier.js' %}"></script>
+{% endblock %}
