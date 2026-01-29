@@ -22,6 +22,9 @@ from .forms import (
     CSVHarvesterForm, TalisExportForm, HarvesterTypeForm
 )
 from .forms import KBARTUploadForm
+from .forms import OERSourceForm
+from .models import OERSource
+from .harvesters.preset_configs import build_oer_presets
 from .harvesters.api_harvester import APIHarvester
 from .harvesters.oaipmh_harvester import OAIPMHHarvester
 from .harvesters.csv_harvester import CSVHarvester
@@ -1078,41 +1081,50 @@ def test_connection_view(request, source_id):
     return redirect('admin:resources_oersource_changelist')
 
 # Source Management Views
+
 @staff_required
-@require_http_methods(['GET', 'POST'])
+@require_http_methods(["GET", "POST"])
 def create_source(request):
-    """Create a new OER source - Admin template"""
+    """
+    Supplier-first OERSource creation view (replaces old source-type flow).
+
+    - Uses OERSourceForm directly (no per-protocol form classes).
+    - Injects supplier presets into the template as window.OER_PRESETS.
+    - On success, redirects to the admin OERSource changelist.
+    """
     try:
-        if request.method == 'POST':
-            source_type = request.POST.get('source_type')
-            form_class = get_form_class(source_type)
-            
-            if not form_class:
-                messages.error(request, "Invalid source type.")
-                return redirect('admin:resources_oersource_changelist')
-                
-            form = form_class(request.POST)
+        if request.method == "POST":
+            form = OERSourceForm(request.POST)
             if form.is_valid():
                 source = form.save()
-                messages.success(request, f"Successfully created {source_type} source: {source.name}")
-                return redirect('admin:resources_oersource_changelist')
-            else:
-                logger.error(f"Invalid form submission in create_source: {form.errors}")
-                messages.error(request, "Error validating the form.")
+                display_name = (
+                    getattr(source, "name", "")
+                    or getattr(source, "display_name", "")
+                    or str(source.id)
+                )
+                messages.success(
+                    request,
+                    f"Successfully created source: {display_name}",
+                )
+                return redirect("admin:resources_oersource_changelist")
         else:
-            # GET request - show source type selection
-            return render(request, 'admin/resources/create_source.html')
-        
-        # If form is invalid, re-render with errors
+            form = OERSourceForm()
+
+        # Supplier-first presets for the dropdown (id_oer_preset)
+        presets = build_oer_presets()
+        oer_presets_json = json.dumps(presets)
+
         context = {
-            'form': form,
-            'source_type': source_type
+            "form": form,
+            "oer_presets_json": oer_presets_json,
         }
         return render(request, TEMPLATE_CREATE_SOURCE, context)
+
     except Exception as e:
         logger.error(f"Error in create_source: {str(e)}")
         messages.error(request, "An error occurred while creating the source.")
-        return redirect('admin:resources_oersource_changelist')
+        return redirect("admin:resources_oersource_changelist")
+
 
 def get_form_class(source_type):
     """Helper function to determine form class based on source type"""

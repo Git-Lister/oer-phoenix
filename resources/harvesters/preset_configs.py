@@ -412,3 +412,38 @@ SUPPLIER_PRESETS = {
         "preset_key": None,
     },
 }
+def build_oer_presets():
+    """
+    Build a list of supplier-first presets for the UI.
+
+    Each item matches what the JS expects in window.OER_PRESETS:
+    - id: stable key
+    - label: human-friendly name
+    - protocol: API / OAIPMH / CSV / MARCXML
+    - preset_key: key into PRESET_CONFIGS[protocol] or None for custom
+    - protocol-specific URL fields (api_endpoint, oaipmh_url, csv_url, marcxml_url)
+    """
+    presets = []
+
+    for preset_id, meta in SUPPLIER_PRESETS.items():
+        protocol = meta["protocol"]
+        preset_key = meta["preset_key"]
+
+        cfg = {}
+        if preset_key:
+            cfg = PRESET_CONFIGS.get(protocol, {}).get(preset_key, {}) or {}
+
+        presets.append(
+            {
+                "id": preset_id,
+                "label": meta["label"],
+                "protocol": protocol,
+                "preset_key": preset_key,
+                "api_endpoint": cfg.get("api_endpoint", ""),
+                "oaipmh_url": cfg.get("oaipmh_url", ""),
+                "csv_url": cfg.get("csv_url", ""),
+                "marcxml_url": cfg.get("marcxml_url", ""),
+            }
+        )
+
+    return presets
