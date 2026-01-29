@@ -2,7 +2,9 @@ from django.urls import path
 from . import views
 from . import api
 
+
 app_name = 'resources'
+
 
 urlpatterns = [
     # Make dashboard the home page
@@ -44,14 +46,12 @@ urlpatterns = [
     # OER Source management (admin functions) - Admin templates
     path('harvest/<int:source_id>/', views.harvest_view, name='harvest_oer_source'),
     path('test-connection/<int:source_id>/', views.test_connection_view, name='test_oer_source_connection'),
-    path('apply-preset/', views.apply_preset_view, name='apply_preset'),
 
     # NEW: Staff maintenance - generate embeddings
     path('embeddings/generate/', views.generate_missing_embeddings, name='generate_embeddings'),
 
-    # Dynamic form handling - Admin templates
+    # Supplier-first create source screen
     path('create-source/', views.create_source, name='create_source'),
-    path('load-configuration-form/', views.load_configuration_form, name='load_configuration_form'),
 
     # API endpoints
     path('api/search/', api.SearchAPIView.as_view(), name='api_search'),
