@@ -10,7 +10,7 @@ from django.urls import reverse
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.db import models
 from django.db.models import Count
-from .harvesters.preset_configs import SUPPLIER_PRESETS, PRESET_CONFIGS
+from .harvesters.preset_configs import PRESET_CONFIGS
 import csv
 import io
 import json
@@ -21,7 +21,7 @@ from .forms import (
     CSVUploadForm, ExportForm, APIHarvesterForm, OAIPMHHarvesterForm,
     CSVHarvesterForm, TalisExportForm, HarvesterTypeForm
 )
-from .forms import KBARTUploadForm, OERSourceForm
+from .forms import KBARTUploadForm
 from .harvesters.api_harvester import APIHarvester
 from .harvesters.oaipmh_harvester import OAIPMHHarvester
 from .harvesters.csv_harvester import CSVHarvester
@@ -761,55 +761,6 @@ def csv_upload(request):
         logger.error(f"Error in csv_upload: {str(e)}")
         messages.error(request, "An error occurred during file upload.")
         return redirect('resources:csv_upload')
-
-@staff_required
-def add_oer_source(request):
-    """
-    Staff-only view for adding an OERSource using supplier-first presets.
-    """
-    if request.method == "POST":
-        form = OERSourceForm(request.POST)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "OER source created.")
-            return redirect("admin:resources_oersource_changelist")
-    else:
-        form = OERSourceForm()
-
-    presets_for_ui = []
-    for preset_id, entry in SUPPLIER_PRESETS.items():
-        proto = entry["protocol"]
-        preset_key = entry["preset_key"]
-
-        config = {}
-        if preset_key and proto in PRESET_CONFIGS:
-            config = PRESET_CONFIGS[proto].get(preset_key, {}) or {}
-
-        presets_for_ui.append(
-            {
-                "id": preset_id,
-                "label": entry["label"],
-                "protocol": proto,
-                "preset_key": preset_key,
-                "supplier": entry["supplier"],
-                "content_scope": entry["content_scope"],
-                "api_endpoint": config.get("api_endpoint", ""),
-                "oaipmh_url": config.get("oaipmh_url", ""),
-                "csv_url": config.get("csv_url", ""),
-                "marcxml_url": config.get("marcxml_url", ""),
-                "request_params": config.get("request_params", {}),
-                "request_headers": config.get("request_headers", {}),
-            }
-        )
-
-    presets_for_ui.sort(key=lambda p: p["label"].lower())
-
-    context = {
-        "form": form,
-        "oer_presets_json": json.dumps(presets_for_ui),
-    }
-    return render(request, "admin/resources/add_oer_source.html", context)
-
 
 
 @staff_required

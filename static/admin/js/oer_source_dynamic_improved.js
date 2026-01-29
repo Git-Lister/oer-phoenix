@@ -1,10 +1,10 @@
-// New supplier-first presets + existing visibility logic for OERSource form
+// Supplier-first presets + visibility/required logic for OERSource form
 
 document.addEventListener("DOMContentLoaded", function () {
   const sourceTypeSelect = document.getElementById("id_source_type");
 
   // ---------------------------------------------------------------------------
-  // 1. Existing CONFIG and visibility logic (kept from your current file)
+  // 1. CONFIG and visibility/required logic
   // ---------------------------------------------------------------------------
 
   const CONFIG = {
@@ -41,16 +41,18 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     updateFieldRequirements(selectedType);
-    filterPresetButtons(selectedType);
   }
 
   function updateFieldRequirements(sourceType) {
-    // Clear all required flags
-    document
-      .querySelectorAll("input[required], select[required], textarea[required]")
-      .forEach((field) => {
-        field.required = false;
+    // Clear all required flags on known config fields
+    Object.values(CONFIG).forEach((cfg) => {
+      cfg.configFields.forEach((fieldId) => {
+        const field = document.getElementById(fieldId);
+        if (field) {
+          field.required = false;
+        }
       });
+    });
 
     // Set required for the selected source type
     if (sourceType && CONFIG[sourceType]) {
@@ -63,35 +65,18 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
-  function filterPresetButtons(selectedType) {
-    // Legacy preset buttons (if any) – keep behaviour but they may be unused
-    document.querySelectorAll(".preset-button[data-type]").forEach((btn) => {
-      const btnType = btn.getAttribute("data-type");
-
-      if (selectedType === btnType) {
-        btn.disabled = false;
-        btn.style.opacity = "1";
-        btn.style.cursor = "pointer";
-      } else {
-        btn.disabled = true;
-        btn.style.opacity = "0.45";
-        btn.style.cursor = "not-allowed";
-      }
-    });
-  }
-
   function attachFieldRowClass(fieldId, cssClass) {
     const field = document.getElementById(fieldId);
     if (!field) return;
 
-    let row = field.closest(".form-row") || field.parentElement;
+    const row = field.closest(".form-row") || field.parentElement;
     if (row) {
       row.classList.add(cssClass);
     }
   }
 
   function initializeFormFields() {
-    Object.entries(CONFIG).forEach(([sourceType, config]) => {
+    Object.values(CONFIG).forEach((config) => {
       config.configFields.forEach((fieldId) => {
         attachFieldRowClass(fieldId, config.cssClass);
       });
@@ -99,6 +84,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   initializeFormFields();
+
   if (sourceTypeSelect) {
     updateFormVisibility(sourceTypeSelect.value);
     sourceTypeSelect.addEventListener("change", function () {
@@ -107,7 +93,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   // ---------------------------------------------------------------------------
-  // 2. NEW supplier-first preset dropdown behaviour for add_oer_source
+  // 2. Supplier-first preset dropdown behaviour for add_oer_source
   // ---------------------------------------------------------------------------
 
   if (!window.OER_PRESETS) {
@@ -117,7 +103,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   const presetSelect = document.getElementById("id_oer_preset");
   if (!presetSelect) {
-    // We are probably on the legacy admin create_source page.
+    // Not on the supplier-first page.
     return;
   }
 
@@ -180,7 +166,6 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   });
 
-  // Export for debugging if you still need them
+  // Optionally expose for debugging
   window.updateFormVisibility = updateFormVisibility;
-  window.filterPresetButtons = filterPresetButtons;
 });

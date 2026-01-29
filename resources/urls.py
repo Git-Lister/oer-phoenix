@@ -2,9 +2,7 @@ from django.urls import path
 from . import views
 from . import api
 
-
 app_name = 'resources'
-
 
 urlpatterns = [
     # Make dashboard the home page
@@ -47,8 +45,6 @@ urlpatterns = [
     path('harvest/<int:source_id>/', views.harvest_view, name='harvest_oer_source'),
     path('test-connection/<int:source_id>/', views.test_connection_view, name='test_oer_source_connection'),
     path('apply-preset/', views.apply_preset_view, name='apply_preset'),
-    path("admin/resources/add-oer-source/", views.add_oer_source, name="add_oer_source"),
-    
 
     # NEW: Staff maintenance - generate embeddings
     path('embeddings/generate/', views.generate_missing_embeddings, name='generate_embeddings'),

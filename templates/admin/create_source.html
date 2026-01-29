@@ -1,37 +1,33 @@
-<p>
-  There is a new supplier-first source creation screen:
-  <a href="{% url 'resources:add_oer_source' %}">Add OER Source (supplier-first)</a>.
-</p>
-
-{% extends "base.html" %}
+{# templates/admin/resources/create_source.html #}
+{% extends "admin/base_site.html" %}
+{% load static %}
 
 {% block content %}
-<h1>Create New OER Source</h1>
+  <h1>Add OER Source (supplier‑first)</h1>
 
-<form method="post">
+  <form method="post" enctype="multipart/form-data">
     {% csrf_token %}
-    
-    <div class="form-group">
-        <label for="id_source_type">Source Type:</label>
-        {{ form.source_type }}
+
+    <div class="form-row">
+      <label for="id_oer_preset" class="required">Select OER source:</label>
+      <select id="id_oer_preset" class="vSelect">
+        <option value="">-- Choose a preset or custom configuration --</option>
+      </select>
+      <p class="help">
+        Presets automatically fill technical fields. Choose a custom option to configure manually.
+      </p>
     </div>
-    
-    <div id="configuration-form"></div>
-    
-    <button type="submit" class="btn btn-primary">Create Source</button>
-</form>
 
-<script>
-function loadConfigurationForm() {
-    const sourceType = document.getElementById('id_source_type').value;
-    fetch(`/load-configuration-form/?source_type=${sourceType}`)
-        .then(response => response.text())
-        .then(html => {
-            document.getElementById('configuration-form').innerHTML = html;
-        });
-}
+    {{ form.as_p }}
 
-document.getElementById('id_source_type').addEventListener('change', loadConfigurationForm);
-</script>
+    <div class="submit-row">
+      <input type="submit" value="Save" class="default">
+    </div>
+  </form>
 
+  <script>
+    window.OER_PRESETS = JSON.parse('{{ oer_presets_json|escapejs }}');
+  </script>
+
+  <script src="{% static 'admin/js/oer_source_dynamic_improved.js' %}"></script>
 {% endblock %}
