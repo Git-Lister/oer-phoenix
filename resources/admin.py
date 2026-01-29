@@ -200,7 +200,8 @@ class OERSourceAdmin(admin.ModelAdmin):
     
     # Add JavaScript for dynamic form behavior
     class Media:
-        js = ('admin/js/oer_source_dynamic.js',)
+        js = ('admin/js/oer_source_dynamic_improved.js',)
+
     
     def get_fieldsets(self, request, obj=None):
         """Single fieldset structure that works for all source types"""

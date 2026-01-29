@@ -3,80 +3,162 @@ from django.core.validators import URLValidator
 from django.utils.translation import gettext_lazy as _
 from .models import OERSource, OERResource
 
+from resources.harvesters.preset_configs import (
+    SUPPLIER_PRESETS,
+    PRESET_CONFIGS,
+)
+
+
+def get_supplier_preset_choices():
+    """
+    Returns a list of (id, label_with_protocol) for use in forms/admin.
+
+    e.g. ("doab_books_api", "DOAB – Books (API)")
+    """
+    choices = []
+
+    for preset_id, meta in SUPPLIER_PRESETS.items():
+        supplier = meta.get("supplier")
+        if supplier not in {"OAPEN", "DOAB", "Skills Commons", "Custom"}:
+            continue
+
+        label = f"{meta['supplier']} – {meta['content_scope']} ({meta['protocol']})"
+        choices.append((preset_id, label))
+
+    choices.sort(key=lambda x: x[1])
+    # Add blank option at top
+    return [("", "---------")] + choices
+
 
 class OERSourceForm(forms.ModelForm):
     """Unified form for all OER source types - used in admin"""
-    
+
+    # New: supplier-first preset selector
+    supplier_preset = forms.ChoiceField(
+        label=_("Supplier preset"),
+        required=False,
+        choices=get_supplier_preset_choices(),
+        help_text=_("Optional: choose a preset to auto-fill configuration."),
+    )
+
     class Meta:
         model = OERSource
         fields = [
-            'name', 'description', 'source_type', 'is_active', 
-            'harvest_schedule', 'max_resources_per_harvest',
-            'api_endpoint', 'api_key', 'request_headers', 'request_params',
-            'oaipmh_url', 'oaipmh_set_spec', 
-            'csv_url',
-            'marcxml_url'  # ← ADDED
+            "supplier_preset",  # pseudo-field, not stored on the model
+            "name",
+            "description",
+            "source_type",
+            "is_active",
+            "harvest_schedule",
+            "max_resources_per_harvest",
+            "api_endpoint",
+            "api_key",
+            "request_headers",
+            "request_params",
+            "oaipmh_url",
+            "oaipmh_set_spec",
+            "csv_url",
+            "marcxml_url",  # ← already added
         ]
-    
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Make URL fields not required initially - JavaScript will handle this
-        self.fields['api_endpoint'].required = False
-        self.fields['oaipmh_url'].required = False
-        self.fields['csv_url'].required = False
-        self.fields['marcxml_url'].required = False  # ← ADDED
-        
+        # Make URL fields not required initially - JavaScript / clean() will handle this
+        self.fields["api_endpoint"].required = False
+        self.fields["oaipmh_url"].required = False
+        self.fields["csv_url"].required = False
+        self.fields["marcxml_url"].required = False
+
         # Add URL validators
         url_validator = URLValidator()
-        self.fields['api_endpoint'].validators.append(url_validator)
-        self.fields['oaipmh_url'].validators.append(url_validator)
-        self.fields['marcxml_url'].validators.append(url_validator)  # ← ADDED
+        self.fields["api_endpoint"].validators.append(url_validator)
+        self.fields["oaipmh_url"].validators.append(url_validator)
+        self.fields["marcxml_url"].validators.append(url_validator)
 
         # Optional KBART upload (admin-only non-model field)
-        self.fields['kbart_file'] = forms.FileField(
+        self.fields["kbart_file"] = forms.FileField(
             required=False,
-            label=_('KBART file (TSV)'),
-            help_text=_('Upload a KBART .tsv file to import directly for CSV/KBART sources')
+            label=_("KBART file (TSV)"),
+            help_text=_("Upload a KBART .tsv file to import directly for CSV/KBART sources"),
         )
-    
+
     def clean(self):
         cleaned_data = super().clean()
-        source_type = cleaned_data.get('source_type')
-        
-        # Validate based on selected source type
-        if source_type == 'API' and not cleaned_data.get('api_endpoint'):
-            self.add_error('api_endpoint', 'API endpoint is required for API sources')
-        
-        elif source_type == 'OAIPMH' and not cleaned_data.get('oaipmh_url'):
-            self.add_error('oaipmh_url', 'OAI-PMH URL is required for OAI-PMH sources')
-        
-        elif source_type == 'CSV':
+
+        # 1) Apply supplier preset if chosen
+        preset_id = cleaned_data.get("supplier_preset") or ""
+        if preset_id:
+            meta = SUPPLIER_PRESETS.get(preset_id)
+            if meta:
+                protocol = meta.get("protocol")
+                preset_key = meta.get("preset_key")
+
+                cfg = {}
+                if preset_key:
+                    cfg = PRESET_CONFIGS.get(protocol, {}).get(preset_key, {}) or {}
+
+                # Set protocol on the model
+                cleaned_data["source_type"] = protocol
+
+                # Apply protocol-specific config
+                if protocol == "API":
+                    cleaned_data["api_endpoint"] = cfg.get("api_endpoint", "")
+                    cleaned_data["request_params"] = cfg.get("request_params", {})
+                    cleaned_data["request_headers"] = cfg.get("request_headers", {})
+                elif protocol == "OAIPMH":
+                    cleaned_data["oaipmh_url"] = cfg.get("oaipmh_url", "")
+                    cleaned_data["oaipmh_set_spec"] = cfg.get("oaipmh_set_spec", "")
+                elif protocol == "CSV":
+                    cleaned_data["csv_url"] = cfg.get("csv_url", "")
+                elif protocol == "MARCXML":
+                    cleaned_data["marcxml_url"] = cfg.get("marcxml_url", "")
+
+                # Default name / schedule / max if not manually supplied
+                if not cleaned_data.get("name"):
+                    cleaned_data["name"] = meta.get("label", preset_id)
+                if not cleaned_data.get("harvest_schedule"):
+                    cleaned_data["harvest_schedule"] = cfg.get("harvest_schedule", "manual")
+                if not cleaned_data.get("max_resources_per_harvest"):
+                    cleaned_data["max_resources_per_harvest"] = cfg.get(
+                        "max_resources_per_harvest", 1000
+                    )
+
+        # 2) Existing type-specific validation
+        source_type = cleaned_data.get("source_type")
+
+        if source_type == "API" and not cleaned_data.get("api_endpoint"):
+            self.add_error("api_endpoint", "API endpoint is required for API sources")
+
+        elif source_type == "OAIPMH" and not cleaned_data.get("oaipmh_url"):
+            self.add_error("oaipmh_url", "OAI-PMH URL is required for OAI-PMH sources")
+
+        elif source_type == "CSV":
             # For CSV sources allow either a URL or a KBART file upload (kbart_file)
-            csv_url = cleaned_data.get('csv_url')
-            kbart_file = cleaned_data.get('kbart_file')
+            csv_url = cleaned_data.get("csv_url")
+            kbart_file = cleaned_data.get("kbart_file")
             if not csv_url and not kbart_file:
-                self.add_error('csv_url', 'CSV URL or KBART file is required for CSV/KBART sources')
-            # If a CSV URL is provided, validate it's a URL here (field-level validators were disabled)
+                self.add_error(
+                    "csv_url", "CSV URL or KBART file is required for CSV/KBART sources"
+                )
+            # If a CSV URL is provided, validate it's a URL here
             if csv_url:
                 url_validator = URLValidator()
                 try:
                     url_validator(csv_url)
                 except Exception:
-                    self.add_error('csv_url', 'Enter a valid URL.')
-        
-        # ← ADDED THIS ENTIRE BLOCK
-        elif source_type == 'MARCXML':
-            marcxml_url = cleaned_data.get('marcxml_url')
+                    self.add_error("csv_url", "Enter a valid URL.")
+
+        elif source_type == "MARCXML":
+            marcxml_url = cleaned_data.get("marcxml_url")
             if not marcxml_url:
-                self.add_error('marcxml_url', 'MARCXML URL is required for MARCXML sources')
-            # Validate MARCXML URL format
-            if marcxml_url:
+                self.add_error("marcxml_url", "MARCXML URL is required for MARCXML sources")
+            else:
                 url_validator = URLValidator()
                 try:
                     url_validator(marcxml_url)
                 except Exception:
-                    self.add_error('marcxml_url', 'Enter a valid URL.')
-        
+                    self.add_error("marcxml_url", "Enter a valid URL.")
+
         return cleaned_data
 
 
