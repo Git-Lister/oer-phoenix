@@ -50,9 +50,6 @@ urlpatterns = [
     # NEW: Staff maintenance - generate embeddings
     path('embeddings/generate/', views.generate_missing_embeddings, name='generate_embeddings'),
 
-    # Supplier-first create source screen
-    path('create-source/', views.create_source, name='create_source'),
-
     # API endpoints
     path('api/search/', api.SearchAPIView.as_view(), name='api_search'),
     path('api/rag-answer/', api.rag_answer_view, name='api_rag_answer'),

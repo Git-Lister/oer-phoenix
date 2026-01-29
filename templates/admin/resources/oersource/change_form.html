@@ -3,17 +3,194 @@
 
 {% block extrahead %}
   {{ block.super }}
+
+  <style>
+    .preset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin: 10px 0; }
+    .preset-button { background: var(--primary); color: var(--primary-fg); border: none; padding: 8px 12px; border-radius: 3px; cursor: pointer; font-size: 13px; }
+    .preset-button .preset-label { display: block; font-weight: bold; }
+    .preset-button .preset-meta { display: block; font-size: 11px; opacity: 0.9; margin-top: 2px; }
+  </style>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const sourceTypeField = document.getElementById('id_source_type');
+      const nameField = document.getElementById('id_name');
+      const descField = document.getElementById('id_description');
+      const apiField = document.getElementById('id_api_endpoint');
+      const oaipmhField = document.getElementById('id_oaipmh_url');
+      const oaipmhSetField = document.getElementById('id_oaipmh_set_spec');
+      const csvField = document.getElementById('id_csv_url');
+      const marcxmlField = document.getElementById('id_marcxml_url');
+      const schedField = document.getElementById('id_harvest_schedule');
+      const maxField = document.getElementById('id_max_resources_per_harvest');
+      const activeField = document.getElementById('id_is_active');
+
+      if (!sourceTypeField) return;
+
+      const presets = [
+        // DOAB – API
+        {
+          id: 'doab_books_api',
+          label: 'DOAB – Books (API)',
+          supplier: 'DOAB',
+          protocol: 'API',
+          description: 'Directory of Open Access Books – book-level metadata via REST API.',
+          api_endpoint: 'https://directory.doabooks.org/rest/search',
+          request_params: '{"query":"*","expand":"metadata,bitstreams"}',
+          request_headers: '{"Accept":"application/json"}',
+          harvest_schedule: 'manual',
+          max_resources_per_harvest: 2000
+        },
+        {
+          id: 'doab_chapters_api',
+          label: 'DOAB – Chapters (API)',
+          supplier: 'DOAB',
+          protocol: 'API',
+          description: 'Directory of Open Access Books – chapter-level records via REST API.',
+          api_endpoint: 'https://directory.doabooks.org/rest/search',
+          request_params: '{"query":"dc.type:chapter","expand":"metadata,bitstreams"}',
+          request_headers: '{"Accept":"application/json"}',
+          harvest_schedule: 'manual',
+          max_resources_per_harvest: 2000
+        },
+
+        // OAPEN – MARCXML
+        {
+          id: 'oapen_books_marcxml',
+          label: 'OAPEN – Books (MARCXML)',
+          supplier: 'OAPEN',
+          protocol: 'MARCXML',
+          description: 'OAPEN books via MARCXML export.',
+          marcxml_url: 'https://memo.oapen.org/file/oapen/OAPENLibrary_MARCXML_books.xml',
+          harvest_schedule: 'weekly',
+          max_resources_per_harvest: 5000
+        },
+        {
+          id: 'oapen_chapters_marcxml',
+          label: 'OAPEN – Chapters (MARCXML)',
+          supplier: 'OAPEN',
+          protocol: 'MARCXML',
+          description: 'OAPEN chapters via MARCXML export.',
+          marcxml_url: 'https://memo.oapen.org/file/oapen/OAPENLibrary_MARCXML_chapters.xml',
+          harvest_schedule: 'weekly',
+          max_resources_per_harvest: 5000
+        },
+
+        // Skills Commons – OAI-PMH
+        {
+          id: 'skills_commons_oai',
+          label: 'Skills Commons – Various (OAI-PMH)',
+          supplier: 'Skills Commons',
+          protocol: 'OAIPMH',
+          description: 'Skills Commons workforce training OER via OAI-PMH.',
+          oaipmh_url: 'https://library.skillscommons.org/server/oai/request',
+          oaipmh_set_spec: '',
+          harvest_schedule: 'weekly',
+          max_resources_per_harvest: 10000
+        }
+      ];
+
+      function clearEndpoints() {
+        if (apiField) apiField.value = '';
+        if (oaipmhField) oaipmhField.value = '';
+        if (oaipmhSetField) oaipmhSetField.value = '';
+        if (csvField) csvField.value = '';
+        if (marcxmlField) marcxmlField.value = '';
+      }
+
+      function applyPreset(preset) {
+        clearEndpoints();
+
+        // Set protocol / source type
+        sourceTypeField.value = preset.protocol;
+
+        // Basic fields
+        if (nameField && !nameField.value) {
+          nameField.value = preset.label;
+        }
+        if (descField) {
+          descField.value = preset.description || '';
+        }
+        if (schedField && preset.harvest_schedule) {
+          schedField.value = preset.harvest_schedule;
+        }
+        if (maxField && preset.max_resources_per_harvest) {
+          maxField.value = preset.max_resources_per_harvest;
+        }
+        if (activeField) {
+          activeField.checked = true;
+        }
+
+        // Protocol-specific endpoints
+        if (preset.protocol === 'API' && apiField) {
+          apiField.value = preset.api_endpoint || '';
+          const paramsField = document.getElementById('id_request_params');
+          const headersField = document.getElementById('id_request_headers');
+          if (paramsField && preset.request_params) paramsField.value = preset.request_params;
+          if (headersField && preset.request_headers) headersField.value = preset.request_headers;
+        } else if (preset.protocol === 'OAIPMH' && oaipmhField) {
+          oaipmhField.value = preset.oaipmh_url || '';
+          if (oaipmhSetField) oaipmhSetField.value = preset.oaipmh_set_spec || '';
+        } else if (preset.protocol === 'MARCXML' && marcxmlField) {
+          marcxmlField.value = preset.marcxml_url || '';
+        }
+
+        // Trigger existing dynamic visibility/required logic
+        sourceTypeField.dispatchEvent(new Event('change', { bubbles: true }));
+        if (nameField) nameField.focus();
+      }
+
+      const panel = document.getElementById('supplier-presets-panel');
+      if (!panel) return;
+
+      // Build buttons grouped alphabetically by supplier
+      const bySupplier = {};
+      presets.forEach(p => {
+        (bySupplier[p.supplier] = bySupplier[p.supplier] || []).push(p);
+      });
+
+      Object.keys(bySupplier).sort().forEach(supplier => {
+        const group = bySupplier[supplier];
+        const wrapper = document.createElement('div');
+        const heading = document.createElement('h3');
+        heading.textContent = supplier;
+        wrapper.appendChild(heading);
+
+        const grid = document.createElement('div');
+        grid.className = 'preset-grid';
+
+        group.forEach(preset => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'preset-button';
+          btn.addEventListener('click', () => applyPreset(preset));
+
+          const labelSpan = document.createElement('span');
+          labelSpan.className = 'preset-label';
+          labelSpan.textContent = preset.label;
+
+          const metaSpan = document.createElement('span');
+          metaSpan.className = 'preset-meta';
+          metaSpan.textContent = `${preset.protocol} • ${preset.description}`;
+
+          btn.appendChild(labelSpan);
+          btn.appendChild(metaSpan);
+          grid.appendChild(btn);
+        });
+
+        wrapper.appendChild(grid);
+        panel.appendChild(wrapper);
+      });
+    });
+  </script>
 {% endblock %}
 
 {% block after_field_sets %}
   <div class="module aligned">
-    <h2>Add / edit OER source</h2>
+    <h2>📦 Supplier presets</h2>
     <p class="help">
-      To create a new source using presets by supplier, use the supplier‑first screen:
-      <a href="{% url 'resources:create_source' %}">Add OER source (supplier‑first)</a>.
+      Use the buttons below to apply a preset for DOAB, OAPEN, or Skills Commons; you can tweak any fields before saving.
     </p>
-    <p class="help">
-      This admin form is intended for manual tweaks to existing sources.
-    </p>
+    <div id="supplier-presets-panel"></div>
   </div>
 {% endblock %}

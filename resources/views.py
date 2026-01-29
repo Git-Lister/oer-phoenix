@@ -60,7 +60,6 @@ TEMPLATE_EXPORT_SUCCESS = 'resources/export_success.html'
 TEMPLATE_TALIS_PREVIEW = 'resources/talis_preview.html'
 TEMPLATE_BULK_CSV_UPLOAD = 'admin/resources/csv_upload.html'
 TEMPLATE_EXPORT_DATA = 'admin/resources/export.html'
-TEMPLATE_CREATE_SOURCE = 'admin/resources/create_source.html'
 TEMPLATE_ADD_HARVESTER = 'admin/resources/add_harvester.html'
 TEMPLATE_OERSOURCE_HARVEST = 'admin/resources/oersource_harvest.html'
 TEMPLATE_ADVANCED_SEARCH = "resources/advanced_search.html"
@@ -1080,51 +1079,6 @@ def test_connection_view(request, source_id):
     
     return redirect('admin:resources_oersource_changelist')
 
-# Source Management Views
-
-@staff_required
-@require_http_methods(["GET", "POST"])
-def create_source(request):
-    """
-    Supplier-first OERSource creation view (replaces old source-type flow).
-
-    - Uses OERSourceForm directly (no per-protocol form classes).
-    - Injects supplier presets into the template as window.OER_PRESETS.
-    - On success, redirects to the admin OERSource changelist.
-    """
-    try:
-        if request.method == "POST":
-            form = OERSourceForm(request.POST)
-            if form.is_valid():
-                source = form.save()
-                display_name = (
-                    getattr(source, "name", "")
-                    or getattr(source, "display_name", "")
-                    or str(source.id)
-                )
-                messages.success(
-                    request,
-                    f"Successfully created source: {display_name}",
-                )
-                return redirect("admin:resources_oersource_changelist")
-        else:
-            form = OERSourceForm()
-
-        # Supplier-first presets for the dropdown (id_oer_preset)
-        presets = build_oer_presets()
-        oer_presets_json = json.dumps(presets)
-
-        context = {
-            "form": form,
-            "oer_presets_json": oer_presets_json,
-        }
-        return render(request, TEMPLATE_CREATE_SOURCE, context)
-
-    except Exception as e:
-        logger.error(f"Error in create_source: {str(e)}")
-        messages.error(request, "An error occurred while creating the source.")
-        return redirect("admin:resources_oersource_changelist")
-
 
 def get_form_class(source_type):
     """Helper function to determine form class based on source type"""
@@ -1163,27 +1117,6 @@ def generate_missing_embeddings(request):
     
     return redirect('resources:dashboard')
 
-
-@staff_required
-@require_http_methods(['GET'])
-def load_configuration_form(request):
-    """Load configuration form based on source type"""
-    try:
-        source_type = request.GET.get('source_type')
-        form_class = get_form_class(source_type)
-        
-        if not form_class:
-            return JsonResponse({'error': 'Invalid source type'}, status=400)
-            
-        form = form_class()
-        
-        # Render form to HTML string
-        form_html = render(request, 'admin/resources/partials/source_config_form.html', {'form': form}).content.decode()
-        
-        return JsonResponse({'form_html': form_html})
-    except Exception as e:
-        logger.error(f"Error in load_configuration_form: {str(e)}")
-        return JsonResponse({'error': str(e)}, status=500)
 
 @staff_required
 def add_preset_view(request):
