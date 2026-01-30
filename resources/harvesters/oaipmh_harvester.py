@@ -5,6 +5,7 @@ from urllib.parse import urlencode
 from resources.harvesters.utils import request_with_retry
 from resources.harvesters.base_harvester import BaseHarvester
 from django.core.exceptions import ValidationError
+from urllib.parse import urlparse
 
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,41 @@ def _pick_primary_url(value):
 
     # Otherwise, fall back to the first http(s) URL (e.g. DOAB or OAPEN landing page)
     return http_urls[0]
+
+def _normalise_skills_commons_url(raw_url: str) -> str:
+    """
+    Normalise legacy Skills Commons URLs to the working handle resolver.
+
+    Examples:
+      http://taaccct.org/handle/taaccct/82
+      https://www.skillscommons.org//handle/taaccct/5842
+      https://skillscommons.org/handle/taaccct/5842
+      /handle/taaccct/5842
+      handle/taaccct/5842
+
+    -> https://library.skillscommons.org/handle/taaccct/<id>
+    """
+    if not raw_url:
+        return ""
+
+    raw_url = raw_url.strip()
+
+    # Bare or relative handle
+    if raw_url.startswith("handle/") or raw_url.startswith("/handle/"):
+        path = raw_url.lstrip("/")
+        return f"https://library.skillscommons.org/{path}"
+
+    parsed = urlparse(raw_url)
+    netloc = parsed.netloc or ""
+    path = parsed.path or ""
+
+    # taaccct.org or any *.skillscommons.org host
+    if "skillscommons.org" in netloc or "taaccct.org" in netloc:
+        if "//handle/" in path:
+            path = path.replace("//handle/", "/handle/")
+        return f"https://library.skillscommons.org{path}"
+
+    return raw_url
 
 
 def _normalise_language(raw: str) -> str:
@@ -137,6 +173,27 @@ class OAIHarvester(BaseHarvester):
         # Identifier (URL)
         identifiers = get_dc_field('identifier')
         primary_url = _pick_primary_url(identifiers)
+        
+        # Skills Commons specific URL normalisation:
+        # Their OAI feed returns legacy handle/taaccct URLs which now resolve
+        # via the Digital Commons instance at library.skillscommons.org.
+        try:
+            src_name = (getattr(self.source, "name", "") or "").lower()
+            src_oaipmh_url = (getattr(self.source, "oaipmh_url", "") or "").lower()
+        except Exception:
+            src_name = ""
+            src_oaipmh_url = ""
+
+        is_skills_commons = (
+            "skills commons" in src_name
+            or "skillscommons" in src_name
+            or "skillscommons" in src_oaipmh_url
+            or "library.skillscommons.org" in src_oaipmh_url
+        )
+
+        if is_skills_commons and primary_url:
+            primary_url = _normalise_skills_commons_url(primary_url)
+        
         
         # Description
         descriptions = get_dc_field('description')

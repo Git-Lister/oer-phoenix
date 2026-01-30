@@ -1,225 +1,396 @@
-# OER Rebirth
 
-> A Django-based OER harvesting, enrichment, and search platform with semantic embeddings and AI-powered discovery.
 
-This repository contains a complete platform for harvesting, enriching, and searching Open Educational Resources (OER). The project uses Django, PostgreSQL with pgvector, Celery async workers, and a suite of harvesters (OAI-PMH, MARCXML, CSV, REST API).
+***
 
-**Status:** Production-ready. Latest session completed description enrichment pipeline, admin QOL improvements, and enhanced search interface.
+# OER_Phoenix
 
----
+**OER_Phoenix** is a completely open-source, AI‑powered Open Educational Resources (OER) discovery and curation platform designed for libraries, educators, and learning technologists. It combines traditional metadata harvesting with semantic search, AI‑assisted metadata enrichment, and quality assessment to centralise and streamline the integration of Open Educational Resources into academic institutional workflows. [github](https://github.com/MMU-Library)
 
-## Features
+> Status: active development. Production use is possible for teams comfortable with Docker, Django, and Postgres.
 
-- **Multi-format harvesting** – OAI-PMH, MARCXML, CSV, REST API integrations
-- **Semantic search** – Hybrid keyword + vector similarity on pgvector
-- **Description enrichment** – Auto-fetch and replace boilerplate descriptions via Celery
-- **Admin dashboard** – Filter by embedding status, view resource counts
-- **Query AI** – RAG-powered question answering over resource collection
-- **Quality scoring** – Automated metadata quality assessment
-- **Async processing** – Celery tasks for harvests, enrichment, and indexing
+***
 
----
+## Table of contents
 
-## Prerequisites
+1. [Project goals](#project-goals)  
+2. [Principles](#principles)  
+3. [High‑level architecture](#high-level-architecture)  
+4. [Key features](#key-features)  
+5. [Getting started](#getting-started)  
+   - [Prerequisites](#prerequisites)  
+   - [Quick start with Docker](#quick-start-with-docker)  
+   - [Environments and profiles](#environments-and-profiles)  
+6. [Core workflows](#core-workflows)  
+   - [Harvesting OER sources](#harvesting-oer-sources)  
+   - [Metadata enrichment and embeddings](#metadata-enrichment-and-embeddings)  
+   - [Search and discovery](#search-and-discovery)  
+   - [Talis / reading‑list workflows](#talis--reading-list-workflows)  
+7. [Staff experience](#staff-experience)  
+   - [Django admin vs staff dashboard](#django-admin-vs-staff-dashboard)  
+8. [Information literacy and AI usage](#information-literacy-and-ai-usage)  
+   - [How AI is used](#how-ai-is-used)  
+   - [Transparency for learners](#transparency-for-learners)  
+9. [Configuration and extensibility](#configuration-and-extensibility)  
+10. [Security, privacy, and data protection](#security-privacy-and-data-protection)  
+11. [Contributing](#contributing)  
+12. [Roadmap](#roadmap)  
+13. [About](#about)  
+14. [License](#license)
 
-- Docker & Docker Compose (recommended: Docker Compose v2; use `docker compose`)
-- Git
-- For local development: Python 3.11+ (Docker image uses 3.12)
+***
 
----
+## Project goals
 
-## Quick Start (Docker)
+OER_Phoenix exists to help institutions:
 
-1. Clone the repository:
+- Discover and aggregate high‑quality OER from multiple repositories and catalogues.  
+- Enrich and normalise metadata to make OER more findable, understandable, and reusable.  
+- Support **information literacy**, by exposing how search, AI, and quality judgements are produced rather than hiding them.  
+- Provide an open, extensible platform that libraries can run and adapt themselves. [mmu.ac](https://www.mmu.ac.uk/library)
+
+The project is intentionally open‑source to allow scrutiny, adaptation, and contribution by the wider community.
+
+***
+
+## Principles
+
+OER_Phoenix is built around a small set of principles that guide design and implementation.
+
+### 1. Transparency over magic
+
+- Users should be able to see **which fields are original** and **which are AI‑generated or AI‑enriched**.  
+- Search results should offer a simple explanation of “why this result?”, including whether ranking was driven by keywords, semantic similarity, or previous interactions. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/112554877/5f388ef1-37c2-4e18-8530-d2d4f538e09c/paste.txt)
+
+### 2. Respect for provenance and licensing
+
+- Original source platforms (e.g. OAPEN, DOAB) are always credited prominently.  
+- Licensing information is harvested and preserved; enrichment never changes the licence of a resource.  
+- Where possible, outbound links point back to the canonical resource.
+
+### 3. Human judgement first
+
+- AI is used to **support** selection and appraisal, not to replace human judgement.  
+- Librarians and educators remain responsible for deciding which resources to recommend, how to contextualise them, and how to interpret AI‑generated summaries or scores. [rise.mmu.ac](https://rise.mmu.ac.uk/topic/practical-tips-for-ethical-use-in-assessments/)
+
+### 4. Critical engagement with AI
+
+- The interface and documentation encourage users (staff and students) to **question** AI outputs:  
+  - Quality scores are explained, not treated as ground truth.  
+  - RAG‑style answers are clearly labelled as synthesised and may include citations back to underlying resources.  
+- Institutions are encouraged to adapt OER_Phoenix in line with their own AI literacy and academic integrity guidance. [mmu.ac](https://www.mmu.ac.uk/student-life/course/artificial-intelligence-and-assessments)
+
+### 5. Modularity and openness
+
+- Harvesting, indexing/search, and UI are designed as distinct layers so that institutions can reuse or swap out components.  
+- Configuration is stored using open formats (e.g. JSON, YAML) where practical.  
+- The project aims to remain deployable with standard open‑source tooling (Docker, Postgres, Redis, Celery). [mmu.ac](https://www.mmu.ac.uk/library)
+
+***
+
+## High‑level architecture
+
+At a high level, OER_Phoenix consists of three tightly integrated layers: [mmu.ac](https://www.mmu.ac.uk/library)
+
+1. **Harvesting & ingestion**  
+   - Django models for sources, resources, and harvest jobs.  
+   - Protocol‑specific harvesters:
+     - OAI‑PMH  
+     - REST APIs  
+     - MARCXML  
+     - CSV/KBART  
+   - Queue‑based processing via Celery.
+
+2. **Indexing, enrichment, and search**  
+   - Postgres plus vector extensions for semantic search.  
+   - Enrichment services for:
+     - Subject/topic extraction.  
+     - AI‑generated summaries.  
+     - Quality assessment scores.  
+   - Hybrid search engine combining keyword search and vector similarity.
+
+3. **User interfaces**  
+   - Django admin for configuration and low‑level management.  
+   - Staff dashboard (under development) for common workflows.  
+   - Discovery/search UI for learners and teaching staff.
+
+A more detailed architecture diagram lives under `docs/architecture.md`.
+
+***
+
+## Key features
+
+- **Multi‑protocol harvesting**
+  - Built‑in support for OAI‑PMH, REST APIs, MARCXML, and CSV/KBART sources.  
+  - Configurable presets for commonly used OER repositories to reduce setup time. [mmu.ac](https://www.mmu.ac.uk/library)
+
+- **Metadata enrichment**
+  - Optional AI‑assisted summaries and subject classification.  
+  - Pluggable enrichment backends (LLM‑based and rules‑based) to suit different institutional policies.
+
+- **Semantic and faceted search**
+  - Hybrid search combining keyword, filters, and semantic similarity.  
+  - Facets for source, resource type, subject, language, and more. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/112554877/5f388ef1-37c2-4e18-8530-d2d4f538e09c/paste.txt)
+
+- **Quality scoring**
+  - `overall_quality_score` field representing metadata richness and other heuristics, with an interpretable banded display (e.g. “limited / good / excellent”). [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/112554877/5f388ef1-37c2-4e18-8530-d2d4f538e09c/paste.txt)
+
+- **Reading‑list and export workflows**
+  - Talis export and CSV export for integrating with existing reading‑list systems.  
+  - Planned: internal “collections” feature for logged‑in users.
+
+***
+
+## Getting started
+
+### Prerequisites
+
+- Docker and Docker Compose  
+- Git  
+- 4–8 GB RAM recommended for development environment  
+- For full AI functionality: access to a supported embedding/LLM backend (self‑hosted or cloud) – see `docs/enrichment.md`. [mmu.ac](https://www.mmu.ac.uk/library)
+
+### Quick start with Docker
 
 ```bash
-git clone <repo-url>
-cd OER_Rebirth
+git clone https://github.com/MMU-Library/OER_Phoenix.git
+cd OER_Phoenix
+
+# copy environment template
 cp .env.example .env
-# Edit .env as needed (see .env.example keys)
-```
 
-2. Build and start:
-
-```bash
-docker compose up --build -d
-```
-
-3. Follow logs while the containers start:
-
-```bash
-docker compose logs -f web
-```
-
-Notes:
-- The `web` container's `docker-entrypoint.sh` waits for the DB, creates the
-   database if missing, enables the Postgres `vector` extension, runs
-   migrations, and creates a default superuser `admin`/`adminpass` if necessary.
-
----
-
-## Environment variables (important)
-
-The project uses a `.env` file. A complete example is provided in `.env.example`.
-Key variables you will commonly set:
-
-- `DJANGO_SECRET_KEY` — Django secret key.
-- `DJANGO_DEBUG` — `True` / `False` for local dev vs production.
-
-# Database
-- `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT` — used by Django.
-- `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` — used by the DB
-   container during first-time initialization (these often mirror the `DB_*`
-   values but are read by the Postgres image).
-
-# Celery / Redis
-- `CELERY_BROKER_URL` — e.g. `redis://redis:6379/0` (recommended when using
-   the provided `redis` service in `docker-compose.yml`).
-- `CELERY_RESULT_BACKEND` — e.g. `redis://redis:6379/1`.
-
-# Local LLM / AI enrichment
-- `LOCAL_LLM_URL`, `LOCAL_LLM_MODEL`, `LOCAL_LLM_TIMEOUT` — URL and model for
-   any local model used for enrichment. When using Docker Desktop and running
-   an LLM on the host, use `http://host.docker.internal:<port>` in the `.env`.
-- `ENABLE_LLM_ENRICHMENT` — set `False` by default unless you have an LLM
-   available. Installing AI deps (torch, transformers) is optional and
-   recommended only for users who enable enrichment.
-
----
-
-## First-run checklist (after `docker compose up`)
-
-1. Visit: http://localhost:8000/ (admin at `/admin/`).
-2. Default admin user: `admin` / `adminpass` (created by entrypoint if missing).
-    Please change the password immediately.
-3. Add an OER source in the admin and run a harvest (see management commands).
-
----
-
-## Management commands (run inside the `web` container)
-
-Open a shell in the web container:
-
-```bash
-docker compose exec web bash
-```
-
-Common commands (exact names present under `resources/management/commands`):
-
-- `python manage.py fetch_oer` — run harvests (see command help for args).
-- `python manage.py normalise_resource_type` — normalise legacy resource types.
-- `python manage.py enrich_subjects` — run subject enrichment/backfill jobs.
-- `python manage.py export_talis` — export resources to Talis (requires creds).
-- `python manage.py reindex_qdrant` — reindex into Qdrant (if used).
-- `python manage.py apply_subject_itemtypes` — apply item type mappings.
-- `python manage.py backfill_subjects` — backfill subject data.
-
-Use `python manage.py help <command>` to view usage for each command.
-
----
-
-## Celery / background tasks
-
-The Compose file includes `celery` and `celery-beat` services. Ensure
-`CELERY_BROKER_URL` in `.env` points to Redis when using the bundled Redis
-service. Example values are present in `.env.example`.
-
----
-
-## Optional services
-
-- Qdrant: exposed on port `6333` in `docker-compose.yml` when enabled.
-- pgAdmin: exposed on port `8080` (useful for inspecting the Postgres DB).
-
----
-
-## Troubleshooting
-
-- Database connection errors: verify `.env` DB_* values and that the `db`
-   container is healthy (`docker compose ps` / `docker compose logs db`).
----
-
-## Architecture
-
-**Web (Django)** → REST API, admin interface, dashboard, search views
-
-**Database (PostgreSQL + pgvector)** → OERResource, OERSource, task metadata, embeddings
-
-**Celery (async queue)** → Description enrichment, embedding generation, quality scoring
-
-**Search Engine** → Hybrid keyword + semantic search, ranking
-
-**RAG** → LLM integration for question answering with citations
-
-See [docs/](docs/) for detailed architecture diagrams and data flows.
-
----
-
-## Key Commands
-
-```bash
-# Start full stack
+# start services
 docker compose up -d
 
-# Harvest from a source
-docker compose exec web python manage.py fetch_oer --source doab --limit 100
-
-# Backfill descriptions (preview)
-docker compose exec web python manage.py backfill_descriptions_from_url \
-  --preview --limit 50
-
-# Monitor Celery
-docker compose logs -f celery
-
-# Create superuser
+# run initial migrations and create superuser
+docker compose exec web python manage.py migrate
 docker compose exec web python manage.py createsuperuser
-
-# Access dashboard
-open http://localhost:8000/home/
-open http://localhost:8000/admin/
 ```
 
----
+Then visit `http://localhost:8000/admin/` and log in with your superuser account.
 
-## Troubleshooting
+More detailed instructions, including non‑Docker setup, are in `docs/deployment.md`.
 
-| Issue | Check |
-|-------|-------|
-| Harvest not starting | `docker compose logs web \| findstr "fetch_oer"` |
-| Celery tasks failing | `docker compose logs celery` and check Redis connectivity |
-| Description enrichment slow | Verify `CELERY_BROKER_URL` in `.env` points to running Redis |
-| Search returning no results | Check pgvector extension: `docker compose exec db psql -c "CREATE EXTENSION IF EXISTS vector;"` |
-| Admin page error | Run migrations: `docker compose exec web python manage.py migrate` |
+### Environments and profiles
 
----
+OER_Phoenix supports multiple deployment profiles:
 
-## Further Documentation
+- **Minimal profile**  
+  Harvesting + basic keyword search, no embeddings or LLM. Use for low‑resource environments or initial evaluation.
 
-- **[docs/deployment_verification_checklist.md](docs/deployment_verification_checklist.md)** – Pre-production checks and verification commands
-- **[docs/description_enrichment_implementation.md](docs/description_enrichment_implementation.md)** – Description enrichment pipeline design and API
-- **[docs/description_enrichment_quickstart.md](docs/description_enrichment_quickstart.md)** – 5-minute enrichment test walkthrough
-- **[docs/session_complete_summary.md](docs/session_complete_summary.md)** – Historical development notes for current phase
+- **Full profile**  
+  Enables embeddings, AI enrichment, and RAG features. Requires additional services and configuration.
 
----
+Example Compose files and environment templates for each profile are under `deploy/`.
+
+***
+
+## Core workflows
+
+### Harvesting OER sources
+
+1. Log into Django admin or the staff dashboard.  
+2. Choose a **source preset** (e.g. “OAPEN – Books (API)”) or configure a new source manually.  
+3. Test the connection to validate endpoints and credentials.  
+4. Launch a harvest job and monitor its progress from the Harvest Jobs view. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/112554877/5f388ef1-37c2-4e18-8530-d2d4f538e09c/paste.txt)
+
+Harvest jobs record:
+
+- Source, start/end times, status.  
+- Resources found/created/updated/failed.  
+- High‑level error summaries plus full log messages for debugging.
+
+### Metadata enrichment and embeddings
+
+After harvesting, you can optionally:
+
+- Run metadata enrichment to generate summaries and enriched subjects.  
+- Generate vector embeddings for semantic search.  
+- Run quality assessment to assign `overall_quality_score`.
+
+These can be triggered:
+
+- From Django admin via custom actions.  
+- From the staff dashboard via dedicated buttons.  
+- From scheduled tasks (e.g. nightly Celery beat jobs), if configured. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/112554877/5f388ef1-37c2-4e18-8530-d2d4f538e09c/paste.txt)
+
+### Search and discovery
+
+The discovery UI (non‑admin) allows:
+
+- Keyword and phrase search.  
+- Filtering by source, type, subject, language, and date.  
+- Sorting by relevance, recency, or quality.  
+- Viewing resource details, including clearly labelled AI‑generated fields and links back to the original source. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/112554877/5f388ef1-37c2-4e18-8530-d2d4f538e09c/paste.txt)
+
+A staff‑only RAG test interface lets librarians experiment with LLM‑generated answers summarising sets of search results. This is **not** enabled by default for general users.
+
+### Talis / reading‑list workflows
+
+For institutions using Talis or similar reading‑list systems, OER_Phoenix supports:
+
+- Exporting selected resources as CSV in a Talis‑friendly format.  
+- Creating Talis push jobs that send metadata directly to Talis via background tasks. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/112554877/5f388ef1-37c2-4e18-8530-d2d4f538e09c/paste.txt)
+
+Details live in `docs/talis-workflows.md`.
+
+***
+
+## Staff experience
+
+### Django admin vs staff dashboard
+
+OER_Phoenix deliberately distinguishes between:
+
+- **Django admin** – full power, primarily for technical staff:
+  - Configure sources and harvester presets.  
+  - Inspect raw records and logs.  
+  - Run advanced actions and debugging operations. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/112554877/5f388ef1-37c2-4e18-8530-d2d4f538e09c/paste.txt)
+
+- **Staff dashboard** – simplified, librarian‑friendly hub:
+  - Overview of sources and their health.  
+  - One‑click harvest and test actions.  
+  - Enrichment and embedding controls.  
+  - High‑level status of processing pipelines.
+
+The staff dashboard is accessible to authenticated staff users with appropriate permissions and is documented in `docs/dashboard.md`.
+
+***
+
+## Information literacy and AI usage
+
+### How AI is used
+
+Depending on configuration, OER_Phoenix may use AI for:
+
+- **Metadata enrichment**  
+  - Generating or improving descriptions.  
+  - Suggesting subjects, keywords, or levels.
+
+- **Semantic search**  
+  - Creating embeddings for titles/descriptions and using them to rerank or expand search results.
+
+- **RAG‑style answers** (optional, staff‑only by default)  
+  - Generating natural‑language summaries or overviews based on selected resources.
+
+All AI features are **optional** and can be disabled or replaced with non‑AI alternatives (e.g. rules‑based enrichers). [mmu.ac](https://www.mmu.ac.uk/library)
+
+### Transparency for learners
+
+To support information literacy and critical engagement, OER_Phoenix aims to:
+
+- Clearly label AI‑generated fields on resource pages (e.g. “AI‑generated summary”).  
+- Offer a toggle so users can hide/display AI‑generated content.  
+- Provide “Why this result?” explanations for search results, indicating:  
+  - Which fields matched the query.  
+  - Whether semantic similarity was a factor.  
+  - Any quality score influence. [mmu.ac](https://www.mmu.ac.uk/library)
+
+Institutions are encouraged to link OER_Phoenix to their own AI usage guidelines and academic integrity policies. [rise.mmu.ac](https://rise.mmu.ac.uk/topic/practical-tips-for-ethical-use-in-assessments/)
+
+***
+
+## Configuration and extensibility
+
+OER_Phoenix is designed to be configurable and extensible without heavy forking.
+
+### Harvesters
+
+- New OAI‑PMH, REST, CSV, or MARCXML sources can be added via presets or manual configuration.  
+- A template‑driven REST harvester allows many APIs to be configured declaratively through field mappings rather than new Python code. [mmu.ac](https://www.mmu.ac.uk/library)
+
+### Enrichment backends
+
+Enrichment is implemented via a backend interface. You can:
+
+- Use the default LLM‑based backend.  
+- Enable a rules‑based backend that extracts keywords without external API calls.  
+- Implement your own backend (e.g. institution’s in‑house NLP service) by conforming to the documented interface in `docs/enrichment.md`.
+
+### Theming and branding
+
+Institutions can customise:
+
+- Site title and logo.  
+- Primary colour palette.  
+- Footer links and About text.
+
+See `docs/theming.md` for details.
+
+***
+
+## Security, privacy, and data protection
+
+OER_Phoenix primarily processes **metadata and URLs** for open educational resources, but AI‑related features and logging can still raise privacy and compliance questions.
+
+Recommended practices:
+
+- Do not ingest or store sensitive personal data in resource metadata or prompts.  
+- If using external AI APIs, review their data retention policies and ensure you have appropriate contracts/DPAs.  
+- Restrict access to staff‑only tools (e.g. RAG test interface, raw logs) to authenticated, authorised users.  
+- Enable HTTPS, strong admin passwords, and regular updates of dependencies. [mmu.ac](https://www.mmu.ac.uk/library)
+
+See `docs/security.md` for more detailed guidance and checklist items.
+
+***
 
 ## Contributing
 
-- Fork, branch, and open a pull request to `main`
-- Keep documentation changes in the same PR as related code changes
-- Run tests before submitting: `python manage.py test resources`
+Contributions are welcome from libraries, developers, educators, and students.
 
----
+Ways to contribute:
+
+- Bug reports and feature requests via GitHub Issues.  
+- Pull requests for:
+  - New harvester presets.  
+  - UI/UX improvements.  
+  - Documentation improvements, including translations.  
+- Sharing deployment experiences and institutional configurations.
+
+Please read `CONTRIBUTING.md` for:
+
+- Code style and linting rules.  
+- Branching strategy.  
+- How to run the test suite and CI locally.
+
+***
+
+## Roadmap
+
+Short‑term priorities (next major iteration): [mmu.ac](https://www.mmu.ac.uk/library)
+
+- Staff dashboard with streamlined workflows.  
+- Pipeline visibility (harvested/enriched/embedded/scored flags and filters).  
+- Clear separation and labelling of AI‑generated vs source metadata.  
+- “Why this result?” explanations in search.  
+- Pluggable enrichment backends and improved documentation.  
+- Minimal vs full deployment profiles.
+
+Longer‑term directions:
+
+- More robust analytics on OER usage and coverage.  
+- Additional integrations (LMS, institutional repositories).  
+- Community‑maintained presets for a wider set of OER providers.
+
+***
+
+## About
+
+OER_Phoenix is developed by the Library at **Manchester Metropolitan University** with the aim of exploring how open‑source tools can help universities respond to new challenges in information literacy, AI literacy, and open education. [github](https://github.com/MMU-Library)
+
+The project:
+
+- Started as an internal R&D initiative and is now evolving into a reusable platform for other institutions.  
+- Is openly licensed to encourage collaboration, scrutiny, and reuse.  
+- Welcomes partnerships with libraries, teaching teams, and researchers interested in AI‑supported knowledge curation.
+
+For institutional enquiries or collaboration proposals, please see the contact details in `docs/contact.md` or use the GitHub Discussions board.
+
+***
 
 ## License
 
-Licensed under the MIT License. See [LICENSE](LICENSE) for details.
+OER_Phoenix is released under the **MIT License**. See `LICENSE` for full terms. [mmu.ac](https://www.mmu.ac.uk/library)
 
----
+***
 
-## Support
-
-- **Issues:** GitHub Issues tab
-- **Docs:** [docs/](docs/) folder
-- **Questions:** See troubleshooting table above
-
-
+If you want, next step can be to generate matching `docs/architecture.md`, `docs/enrichment.md`, and `docs/security.md` skeletons so your AI coding workflow always has authoritative references to draw on.
