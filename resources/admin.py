@@ -192,11 +192,24 @@ class OERSourceFieldMappingInline(admin.TabularInline):
 
 @admin.register(OERSource)
 class OERSourceAdmin(admin.ModelAdmin):
-    form = OERSourceForm  # Use the unified form
-    list_display = ['name', 'source_type', 'status_badge', 'last_harvest_display', 'resource_count', 'embedded_count', 'harvest_action_buttons']
+    form = OERSourceForm
+    list_display = ['name', 'source_type', 'status_badge', 'last_harvest_display',
+                    'resource_count', 'embedded_count', 'harvest_action_buttons']
     list_filter = ['source_type', 'status', 'is_active', HasEmbeddingsFilter]
     search_fields = ['name', 'description']
     readonly_fields = ['created_at', 'updated_at', 'total_harvested', 'last_harvest_at']
+
+    # NEW: annotate counts so we can sort on them
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.annotate(
+            _resource_count=Count('resources'),
+            _embedded_count=Count(
+                'resources',
+                filter=Q(resources__content_embedding__isnull=False),
+            ),
+        )
+
     
     # Add JavaScript for dynamic form behavior
     class Media:
@@ -276,40 +289,58 @@ class OERSourceAdmin(admin.ModelAdmin):
             color, obj.get_status_display()
         )
     status_badge.short_description = 'Status'
+    status_badge.admin_order_field = 'status'
 
     def last_harvest_display(self, obj):
         if obj.last_harvest_at:
             return obj.last_harvest_at.strftime('%Y-%m-%d %H:%M')
         return format_html('<em>Never</em>')
     last_harvest_display.short_description = 'Last Harvest'
+    last_harvest_display.admin_order_field = 'last_harvest_at'
+
 
     def resource_count(self, obj):
-        """Display total resource count for this source"""
-        return obj.resources.count()
+        return obj._resource_count
     resource_count.short_description = 'Resources'
+    resource_count.admin_order_field = '_resource_count'
 
     def embedded_count(self, obj):
-        """Display count of resources with embeddings"""
-        return obj.resources.filter(content_embedding__isnull=False).count()
+        return obj._embedded_count
     embedded_count.short_description = 'With Embedding'
+    embedded_count.admin_order_field = '_embedded_count'
 
     def harvest_action_buttons(self, obj):
         if not obj.is_active:
             return format_html('<em>Inactive</em>')
-        
+
         harvest_url = reverse('admin:resources_oersource_harvest', args=[obj.pk])
         test_url = reverse('admin:resources_oersource_test', args=[obj.pk])
-        
+
         return format_html(
             '''
-            <a class="button" href="{}" style="background-color: #417690; color: white; 
-            padding: 5px 10px; text-decoration: none; border-radius: 3px; margin-right: 5px;">🌾 Harvest</a>
-            <br>
-            <a class="button" href="{}" style="background-color: #28a745; color: white; 
-            padding: 5px 10px; text-decoration: none; border-radius: 3px;">🧪 Test</a>
+            <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+            <a href="{0}" class="button" style="
+                background-color: #417690;
+                color: #fff;
+                padding: 3px 6px;
+                font-size: 11px;
+                border-radius: 3px;
+                text-decoration: none;
+            ">🌾 Harvest</a>
+            <a href="{1}" class="button" style="
+                background-color: #28a745;
+                color: #fff;
+                padding: 3px 6px;
+                font-size: 11px;
+                border-radius: 3px;
+                text-decoration: none;
+            ">🧪 Test</a>
+            </div>
             ''',
-            harvest_url, test_url
+            harvest_url,
+            test_url,
         )
+
     harvest_action_buttons.short_description = 'Actions'
 
     def get_urls(self):
@@ -626,12 +657,13 @@ class OERResourceAdmin(admin.ModelAdmin):
     def url_display(self, obj):
         return format_html('<a href="{}" target="_blank">🔗 View</a>', obj.url)
     url_display.short_description = 'URL'
+    url_display.admin_order_field = 'url'
 
     def has_embedding(self, obj):
-        """Display whether resource has an embedding (for list view)."""
         return obj.content_embedding is not None
     has_embedding.boolean = True
     has_embedding.short_description = "Has embedding"
+    has_embedding.admin_order_field = 'content_embedding'
 
     def embedding_status(self, obj):
         """Display embedding status in the change form (human-readable)."""
@@ -643,6 +675,7 @@ class OERResourceAdmin(admin.ModelAdmin):
             '<span style="color: orange;">⚠ No embedding</span>'
         )
     embedding_status.short_description = "Embedding status"
+    embedding_status.admin_order_field = 'content_embedding'
 
     fieldsets = (
         (None, {

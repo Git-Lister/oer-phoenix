@@ -166,7 +166,7 @@ class PresetOAIPMHConfigs:
             "oaipmh_set_spec": "",
             "request_params": {"metadataPrefix": "oai_dc"},
             "request_headers": {},
-            "harvest_schedule": "weekly",
+            "harvest_schedule": "manual",
             "max_resources_per_harvest": 10000,
         }
 
@@ -184,7 +184,7 @@ class PresetOAIPMHConfigs:
             "oaipmh_set_spec": "",
             "request_params": {"metadataPrefix": "oai_dc"},
             "request_headers": {},
-            "harvest_schedule": "weekly",
+            "harvest_schedule": "manual",
             "max_resources_per_harvest": 5000,
         }
 
@@ -200,7 +200,7 @@ class PresetOAIPMHConfigs:
             "oaipmh_set_spec": "",
             "request_params": {"metadataPrefix": "oai_dc"},
             "request_headers": {},
-            "harvest_schedule": "weekly",
+            "harvest_schedule": "manual",
             "max_resources_per_harvest": 2000,
         }
 
@@ -226,7 +226,7 @@ class PresetCSVConfigs:
             "csv_url": "https://memo.oapen.org/file/oapen/OAPENLibrary_KBART_books.tsv",
             "request_params": {},
             "request_headers": {},
-            "harvest_schedule": "weekly",
+            "harvest_schedule": "manual",
             "max_resources_per_harvest": 5000,
         }
 
@@ -241,7 +241,7 @@ class PresetCSVConfigs:
             "csv_url": "https://www.oercommons.org/export/csv",
             "request_params": {},
             "request_headers": {},
-            "harvest_schedule": "monthly",
+            "harvest_schedule": "manual",
             "max_resources_per_harvest": 5000,
         }
 
@@ -256,7 +256,7 @@ class PresetCSVConfigs:
             "csv_url": "https://www.skillscommons.org/export/oer.csv",
             "request_params": {},
             "request_headers": {},
-            "harvest_schedule": "monthly",
+            "harvest_schedule": "manual",
             "max_resources_per_harvest": 10000,
         }
 
@@ -309,7 +309,7 @@ PRESET_CONFIGS = {
             "marcxml_url": "https://memo.oapen.org/file/oapen/OAPENLibrary_MARCXML_books.xml",
             "request_params": {},
             "request_headers": {},
-            "harvest_schedule": "weekly",
+            "harvest_schedule": "manual",
             "max_resources_per_harvest": 5000,
         },
         "oapen_chapters": {
@@ -318,7 +318,7 @@ PRESET_CONFIGS = {
             "marcxml_url": "",
             "request_params": {},
             "request_headers": {},
-            "harvest_schedule": "weekly",
+            "harvest_schedule": "manual",
             "max_resources_per_harvest": 5000,
         },
         "doab": {
@@ -327,7 +327,7 @@ PRESET_CONFIGS = {
             "marcxml_url": "",
             "request_params": {},
             "request_headers": {},
-            "harvest_schedule": "weekly",
+            "harvest_schedule": "manual",
             "max_resources_per_harvest": 5000,
         },
     },
