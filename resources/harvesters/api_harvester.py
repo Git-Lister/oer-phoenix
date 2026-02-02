@@ -1,11 +1,12 @@
 import requests
 import logging
 import time
+
+from django.core.exceptions import ValidationError
+
 from resources.harvesters.utils import request_with_retry
 from resources.harvesters.base_harvester import BaseHarvester
-from django.core.exceptions import ValidationError
 from resources.harvesters.ingestion import ingest_record_dict
-
 
 
 logger = logging.getLogger(__name__)
@@ -52,17 +53,16 @@ class APIHarvester(BaseHarvester):
         self.config = self._get_config()
 
     def _get_config(self):
-        """Extract configuration from source model"""
+        """Extract configuration from source model."""
         # Support configurable timeout via source.request_params['timeout'] or default to 180s
-        # OAPEN REST API can take 90-180s+ when fetching large datasets (2000+ records)
-        timeout = 180  # default: 180 seconds (3 minutes) for large API responses
+        timeout = 180
         params = getattr(self.source, "request_params", {}) or {}
         if params and "timeout" in params:
             try:
                 timeout = int(params["timeout"])
             except (ValueError, TypeError):
                 pass
-        
+
         return {
             "base_url": getattr(self.source, "api_endpoint", None),
             "api_key": getattr(self.source, "api_key", None),
@@ -72,10 +72,9 @@ class APIHarvester(BaseHarvester):
         }
 
     def test_connection(self):
-        """Test connection to API endpoint"""
+        """Test connection to API endpoint."""
         try:
             config = self._get_config()
-            # Test with a simple request
             test_url = f"{config['base_url']}"
             if "?" not in test_url:
                 test_url += "?limit=1"
@@ -101,28 +100,26 @@ class APIHarvester(BaseHarvester):
             return False
 
     def fetch_and_process_records(self):
-        """Fetch and process records from API"""
+        """Fetch and process records from API, then ingest them."""
         try:
             config = self._get_config()
-            
-            # Build the request
+
             url = config["base_url"]
             headers = config.get("headers", {})
             params = config.get("params", {})
-            
+
             # Add API key if provided
             if config.get("api_key"):
                 if "Authorization" not in headers:
                     headers["Authorization"] = f"Bearer {config['api_key']}"
-            
+
             logger.info(f"Fetching API records from: {url}")
             logger.info(f"Request params: {params}")
             logger.info(f"Request headers: {headers}")
-            
-            # Get timeout from config (default 90s for large API responses)
+
             timeout = config.get("timeout", 90)
             logger.info(f"API request timeout: {timeout}s")
-            
+
             try:
                 response = self.request(
                     "get",
@@ -136,19 +133,22 @@ class APIHarvester(BaseHarvester):
                 error_msg = f"API fetch failed: {type(e).__name__}: {str(e)}"
                 logger.error(error_msg)
                 raise ValidationError(error_msg) from e
-            
-            # Log response details for debugging
+
             logger.info(f"API response status: {response.status_code}")
-            logger.info(f"API response content-type: {response.headers.get('content-type', 'unknown')}")
-            
-            # Check if response is actually JSON
-            content_type = response.headers.get('content-type', '')
-            if 'application/json' not in content_type and 'application/xml' in content_type:
-                error_msg = f"API returned XML instead of JSON. Content-Type: {content_type}"
+            logger.info(
+                "API response content-type: "
+                f"{response.headers.get('content-type', 'unknown')}"
+            )
+
+            content_type = response.headers.get("content-type", "")
+            if "application/json" not in content_type and "application/xml" in content_type:
+                error_msg = (
+                    f"API returned XML instead of JSON. Content-Type: {content_type}"
+                )
                 logger.error(error_msg)
                 logger.error(f"Response preview: {response.text[:500]}")
                 raise ValidationError(error_msg)
-            
+
             try:
                 data = response.json()
             except ValueError as e:
@@ -156,63 +156,69 @@ class APIHarvester(BaseHarvester):
                 logger.error(error_msg)
                 logger.error(f"Response content preview: {response.text[:500]}")
                 raise ValidationError(error_msg) from e
-            
-            return self._process_api_response(data)
-            
+
+            records = self._process_api_response(data)
+
+            ingested = 0
+            for rec in records:
+                try:
+                    ingest_record_dict(self.source, rec)
+                    ingested += 1
+                except Exception as e:
+                    logger.warning(f"Failed to ingest API record: {e}")
+
+            logger.info(f"Ingested {ingested} resources from API")
+            return records
+
         except ValidationError:
-            # Re-raise ValidationErrors as-is
             raise
         except Exception as e:
             error_msg = f"Unexpected error in API harvest: {type(e).__name__}: {str(e)}"
             logger.error(error_msg, exc_info=True)
             raise ValidationError(error_msg) from e
 
-
     def _extract_oapen_metadata(self, metadata_list):
         """
         Extract Dublin Core metadata from OAPEN's metadata array format.
-        
+
         OAPEN returns metadata as:
         [
-            {"key": "dc.title", "value": "...", "language": "en", "schema": "dc", "element": "title", "qualifier": null},
+            {"key": "dc.title", "value": "...", ...},
             {"key": "dc.creator", "value": "...", ...},
             ...
         ]
-        
+
         Returns a dict mapping Dublin Core elements to values.
         """
         if not isinstance(metadata_list, list):
             return {}
-        
+
         dc_map = {}
         for entry in metadata_list:
             if not isinstance(entry, dict):
                 continue
-            
+
             key = entry.get("key", "").lower()  # e.g., "dc.title", "dc.creator"
             value = entry.get("value", "").strip()
-            
+
             if not key or not value:
                 continue
-            
-            # Store first value for each key (some keys appear multiple times)
+
             if key not in dc_map:
                 dc_map[key] = value
             elif key.endswith(".author") or key.endswith(".creator"):
-                # For multiple authors/creators, append with semicolon
                 dc_map[key] = dc_map[key] + "; " + value
-        
+
         return dc_map
 
     def _process_api_response(self, data):
-        """Process API response into OER resource data"""
+        """Process API response into OER resource data dicts."""
         processed_records = []
 
         # Handle different API response structures
         if isinstance(data, list):
             records = data
         else:
-            # safe-get keys that commonly contain lists
             records = (
                 data.get("results")
                 or data.get("items")
@@ -220,42 +226,65 @@ class APIHarvester(BaseHarvester):
                 or data.get("records")
             )
             if records is None:
-                # If there's no list container, treat the whole payload as a single record
                 records = [data] if isinstance(data, dict) and data else []
 
         for record in records:
             try:
-                # Some APIs return primitive values inside lists; ensure `record` is a dict
                 if not isinstance(record, dict):
                     continue
 
-                # Check if this is an OAPEN record (has metadata array with Dublin Core entries)
+                # OAPEN REST API format (metadata array with dc.* keys)
                 if isinstance(record.get("metadata"), list) and any(
-                    isinstance(m, dict) and m.get("key", "").startswith("dc.") 
+                    isinstance(m, dict) and m.get("key", "").startswith("dc.")
                     for m in record.get("metadata", [])
                 ):
-                    # OAPEN REST API format - extract Dublin Core metadata
                     dc_map = self._extract_oapen_metadata(record.get("metadata", []))
-                    
-                    # Map Dublin Core fields to resource fields
+
                     title = dc_map.get("dc.title", record.get("name", ""))
-                    description = dc_map.get("dc.description", "") or dc_map.get("dc.description.abstract", "")
-                    author = dc_map.get("dc.creator", "") or dc_map.get("dc.contributor.author", "")
+                    description = dc_map.get("dc.description", "") or dc_map.get(
+                        "dc.description.abstract", ""
+                    )
+                    author = dc_map.get("dc.creator", "") or dc_map.get(
+                        "dc.contributor.author", ""
+                    )
                     subject = dc_map.get("dc.subject", "")
                     publisher = dc_map.get("dc.publisher", "")
-                    license_val = dc_map.get("dc.rights", "") or dc_map.get("dc.rights.uri", "")
+                    license_val = dc_map.get("dc.rights", "") or dc_map.get(
+                        "dc.rights.uri", ""
+                    )
                     lang = dc_map.get("dc.language", "en")
                     resource_type = dc_map.get("dc.type", record.get("type", ""))
-                    
+
+                    # Date fields: dc.date.issued preferred, then dc.date
+                    raw_date = (
+                        dc_map.get("dc.date.issued")
+                        or dc_map.get("dc.date")
+                        or ""
+                    )
+                    publication_year = ""
+                    date_first_published = None
+                    if raw_date:
+                        raw_date = raw_date.strip()
+                        if len(raw_date) >= 4 and raw_date[:4].isdigit():
+                            publication_year = raw_date[:4]
+                        if (
+                            len(raw_date) >= 10
+                            and raw_date[4] == "-"
+                            and raw_date[7] == "-"
+                        ):
+                            date_first_published = raw_date
+
                     # Try to construct URL from handle or link
                     url = ""
                     if record.get("handle"):
-                        # OAPEN handles resolve via https://hdl.handle.net/
                         url = f"https://hdl.handle.net/{record['handle']}"
                     elif record.get("link"):
-                        # Relative link from OAPEN
-                        url = f"https://library.oapen.org{record['link']}" if record['link'].startswith('/') else record['link']
-                    
+                        url = (
+                            f"https://library.oapen.org{record['link']}"
+                            if record["link"].startswith("/")
+                            else record["link"]
+                        )
+
                     resource_data = {
                         "title": title,
                         "description": description,
@@ -267,13 +296,14 @@ class APIHarvester(BaseHarvester):
                         "resource_type": resource_type,
                         "normalised_type": _normalise_resource_type(resource_type),
                         "subject": subject,
+                        "publication_year": publication_year,
+                        "date_first_published": date_first_published,
                     }
                 else:
-                    # Generic API format - backward compatibility
+                    # Generic API format
                     raw_lang = record.get("language", "en")
                     raw_type = record.get("resource_type", record.get("type", ""))
 
-                    # subject / keywords normalisation
                     subj = (
                         record.get("subject")
                         or record.get("subjects")
@@ -285,22 +315,50 @@ class APIHarvester(BaseHarvester):
                     if isinstance(subj, (list, tuple)):
                         subj = "; ".join(str(s).strip() for s in subj if s)
 
+                    # Generic date extraction for APIs like DOAB
+                    raw_date = (
+                        record.get("publication_date")
+                        or record.get("date")
+                        or record.get("published")
+                        or ""
+                    )
+                    publication_year = ""
+                    date_first_published = None
+                    if raw_date:
+                        raw_date = str(raw_date).strip()
+                        if len(raw_date) >= 4 and raw_date[:4].isdigit():
+                            publication_year = raw_date[:4]
+                        if (
+                            len(raw_date) >= 10
+                            and raw_date[4] == "-"
+                            and raw_date[7] == "-"
+                        ):
+                            date_first_published = raw_date
+
                     resource_data = {
                         "title": record.get("title", record.get("name", "")),
-                        "description": record.get("description", record.get("summary", "")),
-                        "url": record.get("url", record.get("link", record.get("identifier", ""))),
+                        "description": record.get(
+                            "description", record.get("summary", "")
+                        ),
+                        "url": record.get(
+                            "url", record.get("link", record.get("identifier", ""))
+                        ),
                         "license": record.get("license", record.get("rights", "")),
-                        "publisher": record.get("publisher", record.get("provider", "")),
+                        "publisher": record.get(
+                            "publisher", record.get("provider", "")
+                        ),
                         "author": record.get(
-                            "author", record.get("creator", record.get("owner", ""))
+                            "author",
+                            record.get("creator", record.get("owner", "")),
                         ),
                         "language": _normalise_language(raw_lang),
                         "resource_type": raw_type,
                         "normalised_type": _normalise_resource_type(raw_type),
                         "subject": subj,
+                        "publication_year": publication_year,
+                        "date_first_published": date_first_published,
                     }
 
-                # Require at least title and URL
                 if resource_data["title"] and resource_data["url"]:
                     processed_records.append(resource_data)
 
@@ -310,5 +368,3 @@ class APIHarvester(BaseHarvester):
 
         logger.info(f"Processed {len(processed_records)} records from API")
         return processed_records
-
-

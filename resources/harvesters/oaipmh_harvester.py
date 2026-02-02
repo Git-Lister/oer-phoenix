@@ -243,6 +243,7 @@ class OAIHarvester(BaseHarvester):
             "language": lang,
         }
 
+
     def fetch_and_process_records(self):
         config = self._get_config()
         base = config["base_url"]
@@ -332,6 +333,8 @@ class OAIHarvester(BaseHarvester):
             if (rt is None or (rt.text is None or rt.text.strip() == "")):
                 break
             resumption_token = rt.text
+
+            
 
         return records
 

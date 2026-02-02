@@ -26,7 +26,8 @@ def ingest_record_dict(source, data: Dict[str, Any]) -> OERResource:
     Expected keys (best-effort):
       title, url, description, license, publisher, author,
       language, resource_type, normalised_type, subject,
-      isbn, issn, oclc_number, doi.
+      isbn, issn, oclc_number, doi,
+      publication_year, date_first_published.
     """
     url = (data.get("url") or "").strip()
     if not url:
@@ -53,6 +54,8 @@ def ingest_record_dict(source, data: Dict[str, Any]) -> OERResource:
             "issn": data.get("issn") or "",
             "oclc_number": data.get("oclc_number") or "",
             "doi": data.get("doi") or "",
+            "publication_year": data.get("publication_year") or "",
+            "date_first_published": data.get("date_first_published") or None,
             "is_active": True,
         },
     )
