@@ -4,7 +4,7 @@
 
 # OER_Phoenix
 
-**OER_Phoenix** is a completely open-source, AI‑powered Open Educational Resources (OER) discovery and curation platform designed for libraries, educators, and learning technologists. It combines traditional metadata harvesting with semantic search, AI‑assisted metadata enrichment, and quality assessment to centralise and streamline the integration of Open Educational Resources into academic institutional workflows. [github](https://github.com/MMU-Library)
+**OER_Phoenix** is a completely open-source, AI‑powered Open Educational Resources (OER) discovery and curation platform designed for libraries, educators, and learning technologists. It combines traditional metadata harvesting with semantic search, AI‑assisted metadata enrichment, and quality assessment to centralise and streamline the integration of Open Educational Resources into academic institutional workflows. 
 
 > Status: active development. Production use is possible for teams comfortable with Docker, Django, and Postgres.
 
@@ -46,7 +46,7 @@ OER_Phoenix exists to help institutions:
 - Discover and aggregate high‑quality OER from multiple repositories and catalogues.  
 - Enrich and normalise metadata to make OER more findable, understandable, and reusable.  
 - Support **information literacy**, by exposing how search, AI, and quality judgements are produced rather than hiding them.  
-- Provide an open, extensible platform that libraries can run and adapt themselves. [mmu.ac](https://www.mmu.ac.uk/library)
+
 
 The project is intentionally open‑source to allow scrutiny, adaptation, and contribution by the wider community.
 
@@ -70,26 +70,26 @@ OER_Phoenix is built around a small set of principles that guide design and impl
 ### 3. Human judgement first
 
 - AI is used to **support** selection and appraisal, not to replace human judgement.  
-- Librarians and educators remain responsible for deciding which resources to recommend, how to contextualise them, and how to interpret AI‑generated summaries or scores. [rise.mmu.ac](https://rise.mmu.ac.uk/topic/practical-tips-for-ethical-use-in-assessments/)
+- Librarians and educators remain responsible for deciding which resources to recommend, how to contextualise them, and how to interpret AI‑generated summaries or scores.
 
 ### 4. Critical engagement with AI
 
 - The interface and documentation encourage users (staff and students) to **question** AI outputs:  
   - Quality scores are explained, not treated as ground truth.  
   - RAG‑style answers are clearly labelled as synthesised and may include citations back to underlying resources.  
-- Institutions are encouraged to adapt OER_Phoenix in line with their own AI literacy and academic integrity guidance. [mmu.ac](https://www.mmu.ac.uk/student-life/course/artificial-intelligence-and-assessments)
+- Institutions are encouraged to adapt OER_Phoenix in line with their own AI literacy and academic integrity guidance. 
 
 ### 5. Modularity and openness
 
 - Harvesting, indexing/search, and UI are designed as distinct layers so that institutions can reuse or swap out components.  
 - Configuration is stored using open formats (e.g. JSON, YAML) where practical.  
-- The project aims to remain deployable with standard open‑source tooling (Docker, Postgres, Redis, Celery). [mmu.ac](https://www.mmu.ac.uk/library)
+- The project aims to remain deployable with standard open‑source tooling (Docker, Postgres, Redis, Celery).
 
 ***
 
 ## High‑level architecture
 
-At a high level, OER_Phoenix consists of three tightly integrated layers: [mmu.ac](https://www.mmu.ac.uk/library)
+At a high level, OER_Phoenix consists of three tightly integrated layers:
 
 1. **Harvesting & ingestion**  
    - Django models for sources, resources, and harvest jobs.  
@@ -121,7 +121,7 @@ A more detailed architecture diagram lives under `docs/architecture.md`.
 
 - **Multi‑protocol harvesting**
   - Built‑in support for OAI‑PMH, REST APIs, MARCXML, and CSV/KBART sources.  
-  - Configurable presets for commonly used OER repositories to reduce setup time. [mmu.ac](https://www.mmu.ac.uk/library)
+  - Configurable presets for commonly used OER repositories to reduce setup time.
 
 - **Metadata enrichment**
   - Optional AI‑assisted summaries and subject classification.  
@@ -147,7 +147,7 @@ A more detailed architecture diagram lives under `docs/architecture.md`.
 - Docker and Docker Compose  
 - Git  
 - 4–8 GB RAM recommended for development environment  
-- For full AI functionality: access to a supported embedding/LLM backend (self‑hosted or cloud) – see `docs/enrichment.md`. [mmu.ac](https://www.mmu.ac.uk/library)
+- For full AI functionality: access to a supported embedding/LLM backend (self‑hosted or cloud) – see `docs/enrichment.md`. 
 
 ### Quick start with Docker
 
@@ -272,7 +272,7 @@ Depending on configuration, OER_Phoenix may use AI for:
 - **RAG‑style answers** (optional, staff‑only by default)  
   - Generating natural‑language summaries or overviews based on selected resources.
 
-All AI features are **optional** and can be disabled or replaced with non‑AI alternatives (e.g. rules‑based enrichers). [mmu.ac](https://www.mmu.ac.uk/library)
+All AI features are **optional** and can be disabled or replaced with non‑AI alternatives (e.g. rules‑based enrichers).
 
 ### Transparency for learners
 
@@ -283,10 +283,9 @@ To support information literacy and critical engagement, OER_Phoenix aims to:
 - Provide “Why this result?” explanations for search results, indicating:  
   - Which fields matched the query.  
   - Whether semantic similarity was a factor.  
-  - Any quality score influence. [mmu.ac](https://www.mmu.ac.uk/library)
+  - Any quality score influence. 
 
-Institutions are encouraged to link OER_Phoenix to their own AI usage guidelines and academic integrity policies. [rise.mmu.ac](https://rise.mmu.ac.uk/topic/practical-tips-for-ethical-use-in-assessments/)
-
+Institutions are encouraged to link OER_Phoenix to their own AI usage guidelines and academic integrity policies.
 ***
 
 ## Configuration and extensibility
@@ -296,7 +295,7 @@ OER_Phoenix is designed to be configurable and extensible without heavy forking.
 ### Harvesters
 
 - New OAI‑PMH, REST, CSV, or MARCXML sources can be added via presets or manual configuration.  
-- A template‑driven REST harvester allows many APIs to be configured declaratively through field mappings rather than new Python code. [mmu.ac](https://www.mmu.ac.uk/library)
+- A template‑driven REST harvester allows many APIs to be configured declaratively through field mappings rather than new Python code. 
 
 ### Enrichment backends
 
@@ -327,7 +326,7 @@ Recommended practices:
 - Do not ingest or store sensitive personal data in resource metadata or prompts.  
 - If using external AI APIs, review their data retention policies and ensure you have appropriate contracts/DPAs.  
 - Restrict access to staff‑only tools (e.g. RAG test interface, raw logs) to authenticated, authorised users.  
-- Enable HTTPS, strong admin passwords, and regular updates of dependencies. [mmu.ac](https://www.mmu.ac.uk/library)
+- Enable HTTPS, strong admin passwords, and regular updates of dependencies. 
 
 See `docs/security.md` for more detailed guidance and checklist items.
 
@@ -356,7 +355,7 @@ Please read `CONTRIBUTING.md` for:
 
 ## Roadmap
 
-Short‑term priorities (next major iteration): [mmu.ac](https://www.mmu.ac.uk/library)
+Short‑term priorities (next major iteration): 
 
 - Staff dashboard with streamlined workflows.  
 - Pipeline visibility (harvested/enriched/embedded/scored flags and filters).  
@@ -375,7 +374,7 @@ Longer‑term directions:
 
 ## About
 
-OER_Phoenix is developed by the Library at **Manchester Metropolitan University** with the aim of exploring how open‑source tools can help universities respond to new challenges in information literacy, AI literacy, and open education. [github](https://github.com/MMU-Library)
+OER_Phoenix is developed by the Library at **Manchester Metropolitan University** with the aim of exploring how open‑source tools can help universities respond to new challenges in information literacy, AI literacy, and open education. 
 
 The project:
 
@@ -389,7 +388,7 @@ For institutional enquiries or collaboration proposals, please see the contact d
 
 ## License
 
-OER_Phoenix is released under the **MIT License**. See `LICENSE` for full terms. [mmu.ac](https://www.mmu.ac.uk/library)
+OER_Phoenix is released under the **MIT License**. See `LICENSE` for full terms. 
 
 ***
 
