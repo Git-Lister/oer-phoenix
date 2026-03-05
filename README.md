@@ -372,9 +372,6 @@ Longer‑term directions:
 
 ***
 
-## About
-
-OER_Phoenix is developed by the Library at **Manchester Metropolitan University** with the aim of exploring how open‑source tools can help universities respond to new challenges in information literacy, AI literacy, and open education. 
 
 The project:
 
