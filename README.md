@@ -41,12 +41,13 @@
 
 ## Project goals
 
-OER_Phoenix exists to help institutions:
+OER_Phoenix helps academic libraries and teaching teams:
+– Aggregate and enrich OER from multiple sources into one searchable platform.
+– Make search and AI‑assisted enrichment transparent and inspectable.
+– Fit OER discovery into real library and reading‑list workflows.
+– Run with minimal, policy‑aligned AI or no AI at all.
 
-- Discover and aggregate high‑quality OER from multiple repositories and catalogues.  
-- Enrich and normalise metadata to make OER more findable, understandable, and reusable.  
-- Support **information literacy**, by exposing how search, AI, and quality judgements are produced rather than hiding them.  
-
+Full 2026 goals and scope → docs/goals-2026.md.
 
 The project is intentionally open‑source to allow scrutiny, adaptation, and contribution by the wider community.
 
@@ -388,5 +389,3 @@ For institutional enquiries or collaboration proposals, please see the contact d
 OER_Phoenix is released under the **MIT License**. See `LICENSE` for full terms. 
 
 ***
-
-If you want, next step can be to generate matching `docs/architecture.md`, `docs/enrichment.md`, and `docs/security.md` skeletons so your AI coding workflow always has authoritative references to draw on.
