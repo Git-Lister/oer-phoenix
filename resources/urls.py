@@ -66,7 +66,9 @@ urlpatterns = [
     path('talis/report/download/', views.talis_report_download, name='talis_report_download'),
     path('talis/push/', views.talis_push, name='talis_push'),
     path('search/export/talis/', views.search_export_talis, name='search_export_talis'),
+    path('talis/import/', views.talis_import_list, name='talis_import_list'),
+    path('talis/jobs/', views.talis_push_jobs_list, name='talis_push_jobs_list'),
+    path('talis/jobs/<int:job_id>/retry/', views.talis_retry_job, name='talis_retry_job'),
 
-    # Admin/demo: list recent Talis push jobs
-    path('talis/jobs/', views.talis_jobs, name='talis_jobs'),
+
 ]

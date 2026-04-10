@@ -1,10 +1,13 @@
 # resources/services/talis_analysis.py
 
+import logging
 from dataclasses import dataclass, field
-from typing import List, Dict
+from typing import Dict, List
 
 from resources.services.search_engine import OERSearchEngine, SearchResult
-from resources.services.talis import TalisList, TalisItem
+from resources.services.talis import TalisItem, TalisList
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -37,6 +40,10 @@ def _build_query(item: TalisItem) -> str:
         bits.append(f"ISBN {item.isbn}")
     if item.doi:
         bits.append(f"DOI {item.doi}")
+    if item.publisher:
+        bits.append(f"Publisher {item.publisher}")
+    if item.publication_year:
+        bits.append(item.publication_year)
     return " ".join(bits)
 
 
@@ -56,9 +63,21 @@ def analyse_talis_list(talis_list: TalisList, limit: int = 5) -> TalisAnalysisRe
     item_analyses: List[TalisItemAnalysis] = []
     breakdown_by_type: Dict[str, int] = {}
 
-    for item in talis_list.items:
+    total_items = len(talis_list.items)
+    for idx, item in enumerate(talis_list.items, 1):
+        logger.info(f"Analysing item {idx}/{total_items}: {item.title}")
+        
         query = _build_query(item)
-        results = engine.hybrid_search(query, limit=limit)
+        results = []
+        
+        try:
+            results = engine.hybrid_search(query, limit=limit)
+        except Exception as e:
+            logger.warning(
+                f"Hybrid search failed for item {idx} ({item.title}). Error: {e}. "
+                f"Continuing with no results for this item."
+            )
+            results = []
 
         for r in results:
             r_type = getattr(r.resource, "resource_type", "unknown")

@@ -118,6 +118,20 @@
             Find OER Alternatives
           </button>
         </form>
+
+        <!-- NEW: Talis API import & job history links -->
+        <hr class="my-3">
+        <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center">
+          <a href="{% url 'resources:talis_import_list' %}" class="btn btn-outline-primary btn-sm">
+            📥 Import Talis List via API
+          </a>
+          <a href="{% url 'resources:talis_push_jobs_list' %}" class="btn btn-outline-info btn-sm">
+            📋 View Push History
+          </a>
+        </div>
+        <small class="text-muted d-block mt-2">
+          Import a reading list directly using its Talis ID (requires API credentials). Push history shows past exports to Talis.
+        </small>
       </div>
     </div>
   </div>

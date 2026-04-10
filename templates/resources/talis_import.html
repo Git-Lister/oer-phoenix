@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Import Talis Reading List{% endblock %}
+
+{% block content %}
+<h1>Import Talis Reading List</h1>
+<p>Enter a Talis list ID or full URL to fetch the list and analyse OER coverage.</p>
+
+<form method="post">
+  {% csrf_token %}
+  <div class="mb-3">
+    <label for="list_id" class="form-label">List ID or URL</label>
+    <input type="text" name="list_id" id="list_id" class="form-control" 
+           placeholder="e.g., 12345 or https://mmu.rl.talis.com/lists/12345">
+    <div class="form-text">The list must be accessible via the Talis API with your configured credentials.</div>
+  </div>
+  <button type="submit" class="btn btn-primary">Import and Analyse</button>
+  <a href="{% url 'resources:dashboard' %}" class="btn btn-secondary">Cancel</a>
+</form>
+{% endblock %}

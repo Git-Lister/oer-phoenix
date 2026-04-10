@@ -1,45 +1,52 @@
 # views.py - robust id access emended version
 
-from django.shortcuts import render, redirect, get_object_or_404
-from django.views.decorators.http import require_http_methods
-from django.views.generic import FormView
-from django.contrib import messages
-from django.http import HttpResponse, JsonResponse
-from django.core import serializers
-from django.urls import reverse
-from django.contrib.auth.decorators import login_required, user_passes_test
-from django.db import models
-from django.db.models import Count
-from .harvesters.preset_configs import PRESET_CONFIGS
 import csv
 import io
 import json
 import logging
 
-from .models import OERResource, OERSource, HarvestJob, TalisPushJob
-from .forms import (
-    CSVUploadForm, ExportForm, APIHarvesterForm, OAIPMHHarvesterForm,
-    CSVHarvesterForm, TalisExportForm, HarvesterTypeForm
-)
-from .forms import KBARTUploadForm
-from .forms import OERSourceForm
-from .models import OERSource
-from .harvesters.preset_configs import build_oer_presets
-from .harvesters.api_harvester import APIHarvester
-from .harvesters.oaipmh_harvester import OAIPMHHarvester
-from .harvesters.csv_harvester import CSVHarvester
-from .harvesters.preset_configs import PresetAPIConfigs, PresetOAIPMHConfigs
-from .harvesters.marcxml_harvester import MARCXMLHarvester
-
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.core import serializers
+from django.db import models
+from django.db.models import Count
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.views.decorators.http import require_http_methods
+from django.views.generic import FormView
 
 # NEW: Talis import/analysis helpers for dashboard workflows
 from resources.services.talis import (
-    parse_csv_to_talis_list,
-    fetch_list_from_url,
-    TalisList,
     TalisItem,
+    TalisList,
+    fetch_list_from_url,
+    parse_csv_to_talis_list,
 )
 from resources.services.talis_analysis import analyse_talis_list
+
+from .forms import (
+    APIHarvesterForm,
+    CSVHarvesterForm,
+    CSVUploadForm,
+    ExportForm,
+    HarvesterTypeForm,
+    KBARTUploadForm,
+    OAIPMHHarvesterForm,
+    OERSourceForm,
+    TalisExportForm,
+)
+from .harvesters.api_harvester import APIHarvester
+from .harvesters.csv_harvester import CSVHarvester
+from .harvesters.marcxml_harvester import MARCXMLHarvester
+from .harvesters.oaipmh_harvester import OAIPMHHarvester
+from .harvesters.preset_configs import (
+    PRESET_CONFIGS,
+    PresetAPIConfigs,
+    PresetOAIPMHConfigs,
+    build_oer_presets,
+)
+from .models import HarvestJob, OERResource, OERSource, TalisPushJob
 from .services.search_engine import OERSearchEngine
 
 logger = logging.getLogger(__name__)
@@ -232,7 +239,64 @@ def talis_list_analyse_view(request):
             "An error occurred while preparing the Talis analysis.",
         )
         return redirect("resources:dashboard")
+    
+    
+@staff_required
+def talis_import_list(request):
+    """
+    Import a Talis reading list via API, then analyse.
+    """
+    if request.method == 'POST':
+        list_id = request.POST.get('list_id', '').strip()
+        # Allow full URL or just ID
+        if 'lists/' in list_id:
+            # Extract the part after 'lists/'
+            list_id = list_id.split('lists/')[-1]
+            # Remove .html suffix if present
+            if '.html' in list_id:
+                list_id = list_id.split('.html')[0]
+            # Remove any query string
+            list_id = list_id.split('?')[0]
+            # Also handle trailing slashes
+            list_id = list_id.rstrip('/')
+        
+        if not list_id:
+            messages.error(request, "Please provide a Talis list ID or URL.")
+            return redirect('resources:talis_import_list')  # Fixed redirect name
+        
+        try:
+            from .services.talis import TalisClient
+            client = TalisClient()
+            client.authenticate()
+            talis_list = client.get_list(list_id)
+            _store_talis_list_in_session(request, talis_list)
+            return redirect('resources:talis_preview_dashboard')
+        except Exception as e:
+            logger.error(f"Error importing Talis list: {str(e)}")
+            messages.error(request, f"Failed to fetch list: {str(e)}")
+            return redirect('resources:talis_import_list')  # Fixed redirect name
+    
+    return render(request, 'resources/talis_import.html')
 
+@staff_required
+def talis_push_jobs_list(request):
+    """List all Talis push jobs with status, errors, and retry option."""
+    jobs = TalisPushJob.objects.order_by('-created_at').prefetch_related('resources')
+    return render(request, 'resources/talis_push_jobs.html', {'jobs': jobs})
+
+@staff_required
+def talis_retry_job(request, job_id):
+    """Retry a failed Talis push job."""
+    job = get_object_or_404(TalisPushJob, pk=job_id)
+    if job.status == 'failed':
+        job.status = 'pending'
+        job.save(update_fields=['status'])
+        from .tasks import talis_push_report
+        talis_push_report.delay(job.id)
+        messages.success(request, f"Job #{job.id} has been queued for retry.")
+    else:
+        messages.warning(request, "Only failed jobs can be retried.")
+    return redirect('resources:talis_push_jobs_list')
 
 
 def talis_list_preview_view(request):
@@ -441,8 +505,8 @@ def ai_search(request):
         rag_resources = []
 
         if query:
-            from .services.search_engine import OERSearchEngine
             from .services.rag import answer_with_rag, parse_citations
+            from .services.search_engine import OERSearchEngine
 
             engine = OERSearchEngine()
 
@@ -910,8 +974,11 @@ def export_to_talis(request):
     try:
         # NEW: handle POST from Talis AI report (checkboxes + action)
         if request.method == "POST" and request.POST.getlist("selected_resources"):
-            from django.http import HttpResponse  # ensure this import exists at top of file
-            from .models import TalisPushJob     # these are already imported in this file
+            from django.http import (
+                HttpResponse,  # ensure this import exists at top of file
+            )
+
+            from .models import TalisPushJob  # these are already imported in this file
             from .tasks import talis_push_report
 
             selected_ids = request.POST.getlist("selected_resources")
@@ -947,22 +1014,44 @@ def export_to_talis(request):
                 return response
 
             elif action == "push_talis":
-                job = TalisPushJob.objects.create(
-                    title=talis_title or "OER_Phoenix export",
-                    description=talis_description,
-                    report_snapshot=[{
-                        "id": int(r.pk),
-                        "title": r.title,
-                        "url": r.url,
-                    } for r in resources],
-                )
-                talis_push_report.delay(job.id)
+                target_list_id = request.POST.get('target_list_id', '').strip()
+                
+                if target_list_id:
+                    # Push to existing list (synchronous, no background job)
+                    from .services.talis import TalisClient
+                    try:
+                        client = TalisClient()
+                        client.authenticate()
+                        added = 0
+                        for r in resources:
+                            client.add_item_to_list(target_list_id, r)
+                            added += 1
+                        messages.success(request, f"Successfully added {added} resource(s) to list {target_list_id}.")
+                    except Exception as e:
+                        logger.error(f"Talis push to existing list failed: {e}")
+                        messages.error(request, f"Failed to add resources: {str(e)}")
+                    return redirect("resources:talis_report_dashboard")
+                else:
+                    # Create a new list (async job)
+                    job = TalisPushJob.objects.create(
+                        title=talis_title or "OER_Phoenix export",
+                        description=talis_description,
+                        report_snapshot=[{
+                            "id": int(r.pk),
+                            "title": r.title,
+                            "url": r.url,
+                        } for r in resources],
+                    )
+                    # Associate resources (if you added ManyToMany to TalisPushJob)
+                    # If you haven't added the ManyToMany yet, comment out the next line
+                    # job.resources.set(resources)   # Temporarily disabled – ManyToMany field not added yet
+                    talis_push_report.delay(job.id)
 
-                messages.success(
-                    request,
-                    "Talis export job started. You can monitor progress on the Talis jobs page."
-                )
-                return redirect("resources:export_success")
+                    messages.success(
+                        request,
+                        "Talis export job started. You can monitor progress on the Talis jobs page."
+                    )
+                    return redirect("resources:export_success")
 
             else:
                 messages.error(request, "No export action was selected.")
@@ -1096,7 +1185,7 @@ def generate_missing_embeddings(request):
     """
     try:
         from resources.services import ai_utils
-        
+
         # Count resources needing embeddings
         resources_needing = OERResource.objects.filter(content_embedding__isnull=True).count()
         
@@ -1304,10 +1393,11 @@ def bulk_csv_upload(request):
 
 def process_talis_csv(request):
     """Process an uploaded Talis CSV: run AI search per line and render a report."""
-    from .forms import CSVUploadForm
-    from .services.search_engine import OERSearchEngine
     import csv
     import io
+
+    from .forms import CSVUploadForm
+    from .services.search_engine import OERSearchEngine
 
     if request.method == 'POST':
         form = CSVUploadForm(request.POST, request.FILES)
@@ -1358,6 +1448,7 @@ def process_talis_csv(request):
 def talis_report_download(request):
     """Download the last Talis report stored in session as CSV."""
     import csv
+
     from django.http import HttpResponse
 
     report = request.session.get('talis_report')
@@ -1386,8 +1477,8 @@ def talis_report_download(request):
 
 def talis_push(request):
     """Push the last Talis report to a configured TALIS API endpoint."""
-    from django.conf import settings
     import requests
+    from django.conf import settings
 
     report = request.session.get('talis_report')
     if not report:
@@ -1418,6 +1509,7 @@ def talis_push(request):
 def search_export_talis(request):
     """Export the last AI search results stored in session as a CSV compatible with Talis."""
     import csv
+
     from django.http import HttpResponse
 
     report = request.session.get('last_search_results')

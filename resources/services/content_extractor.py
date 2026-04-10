@@ -9,17 +9,18 @@ Optional: replace or augment with Apache Tika server if available.
 import hashlib
 import logging
 import time
-import requests
-from bs4 import BeautifulSoup
 from io import BytesIO
 from urllib.parse import urlparse
+
+import requests
+from bs4 import BeautifulSoup
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 logger = logging.getLogger(__name__)
 
 # Configurable limits
-MAX_DOWNLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
+MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
 REQUEST_TIMEOUT = 60  # increased from 20s to handle slow PDF servers (handle.net, OAPEN)
 THROTTLE_SECONDS = 1.0  # minimum seconds between requests to same host (per-process)
 
@@ -123,4 +124,5 @@ def fetch_and_extract(url: str) -> dict:
         text = extract_text_from_html(html)
         return {"text": text, "content_hash": content_hash, "source_type": "html"}
     except Exception:
+        return {"text": "", "content_hash": content_hash, "source_type": "other"}
         return {"text": "", "content_hash": content_hash, "source_type": "other"}
